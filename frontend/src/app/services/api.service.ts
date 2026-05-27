@@ -12,7 +12,8 @@ export class ApiService {
   // Production:
   //   Set localStorage.cacaApiBaseUrl in browser if frontend/backend are on separate domains,
   //   or replace this with environment-based config in Step 29.
-  private baseUrl = this.resolveApiBaseUrl();
+  //private baseUrl = this.resolveApiBaseUrl();
+  private baseUrl = environment.apiBaseUrl || 'https://caca-tournament-backend.onrender.com/api';
 
   constructor(private http: HttpClient) {}
 

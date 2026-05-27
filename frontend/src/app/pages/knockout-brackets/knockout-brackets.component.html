@@ -1,0 +1,49 @@
+
+<section class="knockout-shell">
+  <div class="hero">
+    <div class="badge">CACA Inc</div>
+    <h1>{{ title }}</h1>
+    <p>Quarterfinals • Semifinals • Finals</p>
+  </div>
+
+  <div class="division-grid" [class.four-divisions]="visibleDivisions.length >= 4">
+    <article class="division-card" *ngFor="let division of visibleDivisions">
+      <header class="division-header">
+        <h2>{{ division.divisionName }}</h2>
+        <span>8-player bracket</span>
+      </header>
+
+      <div class="bracket-board">
+        <div class="round round-qf">
+          <div class="round-title">Quarter Final</div>
+          <div class="match" *ngFor="let qf of division.quarterFinals">
+            <div class="team">{{ display(qf.left) }}</div>
+            <div class="team">{{ display(qf.right) }}</div>
+          </div>
+        </div>
+
+        <div class="connector connector-left"></div>
+
+        <div class="round round-sf">
+          <div class="round-title">Semifinal</div>
+          <div class="match" *ngFor="let sf of division.semiFinals">
+            <div class="team">{{ display(sf.left) }}</div>
+            <div class="team">{{ display(sf.right) }}</div>
+          </div>
+        </div>
+
+        <div class="champion-area">
+          <div class="trophy">🏆</div>
+          <div class="round-title final-label">Final</div>
+          <div class="match final-match">
+            <div class="team">{{ display(division.finalMatch?.left) }}</div>
+            <div class="team">{{ display(division.finalMatch?.right) }}</div>
+          </div>
+          <div class="winner">
+            Winner: {{ display(division.finalMatch?.winner) }}
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>

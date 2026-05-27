@@ -1,0 +1,132 @@
+
+<section class="caca-bracket-page">
+  <header class="bracket-hero">
+    <div class="brand-card">
+      <div class="crest">CACA</div>
+      <div>
+        <strong>CACA INC</strong>
+        <span>Let’s play together!</span>
+      </div>
+    </div>
+
+    <div class="hero-title">
+      <div class="stars">★</div>
+      <h1>{{ title }}</h1>
+      <p>{{ subtitle }}</p>
+    </div>
+
+    <div class="cup-card">
+      <div class="cup-icon">🏆</div>
+      <div>
+        <strong>Tournament Cup</strong>
+        <span>Results</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="division-board" *ngFor="let division of visibleDivisions">
+    <h2>{{ division.divisionName }}</h2>
+
+    <div class="round-labels">
+      <span>Quarter Final</span>
+      <span>Semi Final</span>
+      <span>Final</span>
+      <span>Semi Final</span>
+      <span>Quarter Final</span>
+    </div>
+
+    <div class="bracket-grid">
+      <div class="qf-left qf-stack">
+        <div class="match-card" *ngFor="let match of division.quarterFinals.slice(0,2)">
+          <div class="player-row" [class.winner]="match.left?.winner" [class.not-qualified]="match.left?.notQualified">
+            <span class="rank-badge">{{ match.left?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.left) }}</span>
+            <strong class="score">{{ score(match.left) }}</strong>
+          </div>
+          <div class="player-row" [class.winner]="match.right?.winner" [class.not-qualified]="match.right?.notQualified">
+            <span class="rank-badge">{{ match.right?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.right) }}</span>
+            <strong class="score">{{ score(match.right) }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="sf-left sf-stack">
+        <div class="match-card" *ngFor="let match of division.semiFinals.slice(0,1)">
+          <div class="player-row" [class.winner]="match.left?.winner" [class.not-qualified]="match.left?.notQualified">
+            <span class="rank-badge">{{ match.left?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.left) }}</span>
+            <strong class="score">{{ score(match.left) }}</strong>
+          </div>
+          <div class="player-row" [class.winner]="match.right?.winner" [class.not-qualified]="match.right?.notQualified">
+            <span class="rank-badge">{{ match.right?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.right) }}</span>
+            <strong class="score">{{ score(match.right) }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="final-center">
+        <div class="final-title">Final</div>
+        <div class="trophy">🏆</div>
+        <div class="match-card final-card">
+          <div class="player-row" [class.winner]="division.finalMatch?.left?.winner">
+            <span class="rank-badge">{{ division.finalMatch?.left?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(division.finalMatch?.left) }}</span>
+            <strong class="score">{{ score(division.finalMatch?.left) }}</strong>
+          </div>
+          <div class="player-row" [class.winner]="division.finalMatch?.right?.winner">
+            <span class="rank-badge">{{ division.finalMatch?.right?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(division.finalMatch?.right) }}</span>
+            <strong class="score">{{ score(division.finalMatch?.right) }}</strong>
+          </div>
+        </div>
+        <div class="champion-card">
+          <span>Champion</span>
+          <strong>{{ playerLabel(division.champion) }}</strong>
+        </div>
+      </div>
+
+      <div class="sf-right sf-stack">
+        <div class="match-card" *ngFor="let match of division.semiFinals.slice(1,2)">
+          <div class="player-row" [class.winner]="match.left?.winner" [class.not-qualified]="match.left?.notQualified">
+            <span class="rank-badge">{{ match.left?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.left) }}</span>
+            <strong class="score">{{ score(match.left) }}</strong>
+          </div>
+          <div class="player-row" [class.winner]="match.right?.winner" [class.not-qualified]="match.right?.notQualified">
+            <span class="rank-badge">{{ match.right?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.right) }}</span>
+            <strong class="score">{{ score(match.right) }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="qf-right qf-stack">
+        <div class="match-card" *ngFor="let match of division.quarterFinals.slice(2,4)">
+          <div class="player-row" [class.winner]="match.left?.winner" [class.not-qualified]="match.left?.notQualified">
+            <span class="rank-badge">{{ match.left?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.left) }}</span>
+            <strong class="score">{{ score(match.left) }}</strong>
+          </div>
+          <div class="player-row" [class.winner]="match.right?.winner" [class.not-qualified]="match.right?.notQualified">
+            <span class="rank-badge">{{ match.right?.rank || '-' }}</span>
+            <span class="name">{{ playerLabel(match.right) }}</span>
+            <strong class="score">{{ score(match.right) }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot winner-dot"></i> Winner</span>
+      <span><i class="dot muted-dot"></i> Not Qualified / Empty Slot</span>
+    </div>
+  </article>
+
+  <footer class="bracket-footer">
+    <span>📞 CACA Tournament Desk</span>
+    <span>🌐 www.caca-inc.com</span>
+    <span>✉️ cacafunds@gmail.com</span>
+  </footer>
+</section>

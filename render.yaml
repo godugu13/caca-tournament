@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: caca-tournament-backend
+    runtime: java
+    rootDir: backend
+    buildCommand: "gradle clean bootJar -x test"
+    startCommand: "java -jar build/libs/caca-tournament-backend-0.0.1-SNAPSHOT.jar"
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: MONGODB_URI
+        sync: false
+      - key: CACA_ALLOWED_ORIGINS
+        value: "*"

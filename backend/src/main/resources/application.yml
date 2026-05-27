@@ -1,0 +1,13 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: caca-tournament-backend
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/caca_tournament}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

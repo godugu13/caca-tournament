@@ -1,12 +1,10 @@
-FROM eclipse-temurin:17-jdk
-
+FROM gradle:8.10.2-jdk17 AS build
 WORKDIR /app
-
 COPY . .
+RUN gradle clean bootJar -x test --no-daemon
 
-RUN chmod +x gradlew
-RUN ./gradlew clean bootJar -x test
-
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /app/build/libs/*.jar app.jar
 EXPOSE 8080
-
-CMD ["java","-jar","build/libs/caca-tournament-backend-0.0.1-SNAPSHOT.jar"]
+CMD ["java","-jar","app.jar"]

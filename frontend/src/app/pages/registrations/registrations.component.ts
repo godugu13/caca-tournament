@@ -7,11 +7,10 @@ import { Registration, Tournament } from '../../models/models';
 @Component({ selector: 'app-registrations', standalone: true, imports: [FormsModule, NgFor, NgIf, CurrencyPipe], template: `
 <h2>Register For Tournament</h2>
 
-<div class="payment-note">
-  <span class="warning-line">*************** Without payment, Registration is not Valid *****************</span>
-  <p>Please complete the registration using Zelle.</p>
-  <p>Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></p>
-  <p>Zelle: <b>cacafunds&#64;gmail.com</b></p>
+<div class="payment-note compact-payment-note">
+  <span class="warning-line">Payment required to confirm registration.</span>
+  <span>Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></span>
+  <span>Zelle: <b>cacafunds&#64;gmail.com</b></span>
 </div>
 
 <div class="card register-card">
@@ -41,121 +40,65 @@ import { Registration, Tournament } from '../../models/models';
       <span *ngIf="memberMessage" class="ok">{{memberMessage}}</span>
     </div>
 
-    <div class="field-group">
-      <label>Full Name <span class="required">*</span></label>
-      <input [(ngModel)]="model.playerName" placeholder="Full Name">
-    </div>
-
-    <div class="field-group">
-      <label>Phone</label>
-      <input [(ngModel)]="model.phone" placeholder="Phone">
-    </div>
-
-    <div class="field-group" *ngIf="showPartnerColumn()">
-      <label>Partner Name <span class="required">*</span></label>
-      <input [(ngModel)]="model.partnerName" placeholder="Partner Name">
-    </div>
-
-    <div *ngIf="model.format === 'Team Event'" class="team-box team-event-register">
-      <label>Number of Team Members</label>
-      <input [(ngModel)]="teamSize" type="number" min="1" (ngModelChange)="resizeTeamMembers()">
-      <label>Team Members</label>
-      <input *ngFor="let p of model.teamMemberNames; let i=index" [(ngModel)]="model.teamMemberNames![i]" placeholder="Team member {{i+1}}">
-    </div>
+    <div class="field-group"><label>Full Name <span class="required">*</span></label><input [(ngModel)]="model.playerName" placeholder="Full Name"></div>
+    <div class="field-group"><label>Phone</label><input [(ngModel)]="model.phone" placeholder="Phone"></div>
+    <div class="field-group" *ngIf="showPartnerColumn()"><label>Partner Name <span class="required">*</span></label><input [(ngModel)]="model.partnerName" placeholder="Partner Name"></div>
 
     <div class="field-group">
       <label>Payment Status</label>
-      <select [(ngModel)]="model.paymentStatus">
-        <option value="PENDING">Pending</option>
-        <option value="PAID">Paid</option>
-      </select>
+      <select [(ngModel)]="model.paymentStatus"><option value="PENDING">Pending</option><option value="PAID">Paid</option></select>
     </div>
 
-    <div class="register-actions">
-      <button (click)="register()">Register</button>
-    </div>
+    <div class="register-actions"><button (click)="register()">Register</button></div>
   </div>
 </div>
 
-<h3>Players View</h3>
+<div class="card registration-message-card" *ngIf="registrationSuccessMessage || registrationErrorMessage">
+  <p class="ok" *ngIf="registrationSuccessMessage">{{registrationSuccessMessage}}</p>
+  <p class="warning" *ngIf="registrationErrorMessage">{{registrationErrorMessage}}</p>
+</div>
 
+<h3>Excel Upload / Download</h3>
+<div class="card excel-tools-card">
+  <div class="excel-tools-row">
+    <input type="file" accept=".csv,.xls,.xlsx" (change)="onRosterFileSelected($event)">
+    <button type="button" class="secondary" (click)="downloadPlayersCsv()">Download Registered Players CSV</button>
+    <button type="button" class="secondary" (click)="downloadStandingsCsv()">Download Standings CSV</button>
+  </div>
+  <small class="muted">CSV upload columns: Full Name, Email, Phone, Partner Name. For Singles, Partner Name can be blank.</small>
+</div>
+
+<h3>Players View</h3>
 <div class="card bulk-remove-card" *ngIf="players.length">
   <div class="bulk-remove-row">
-    <label class="select-all-label">
-      <input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)">
-      Select All Visible
-    </label>
-
-    <input class="pin-input-short" type="password" maxlength="4" inputmode="numeric"
-           [(ngModel)]="bulkRemovePin" placeholder="Admin PIN">
-
-    <button type="button" class="danger remove-selected-btn"
-            [disabled]="selectedCount() === 0"
-            (click)="removeSelectedPlayers()">
-      Remove Selected Players ({{selectedCount()}})
-    </button>
+    <label class="select-all-label"><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
+    <input class="pin-input-short" type="password" maxlength="4" inputmode="numeric" [(ngModel)]="bulkRemovePin" placeholder="Admin PIN">
+    <button type="button" class="danger remove-selected-btn" [disabled]="selectedCount() === 0" (click)="removeSelectedPlayers()">Remove Selected Players ({{selectedCount()}})</button>
   </div>
   <small class="muted">Enter Admin PIN once, select multiple players, and remove them together.</small>
 </div>
 
 <div class="table-scroll players-table-scroll">
-  <table class="players-table">
-    <thead>
-      <tr>
-        <th class="select-col">Select</th>
-        <th class="serial-col">#</th>
-        <th>Player</th>
-        <th>Format</th>
-        <th *ngIf="showPartnerColumn()">Partner</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Payment</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      <tr *ngFor="let p of players; let i=index">
-        <td class="select-col">
-          <input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)">
-        </td>
-        <td class="serial-col">{{i + 1}}</td>
-        <td>{{displayPlayerName(p)}}</td>
-        <td>{{p.format || model.format || '-'}}</td>
-        <td *ngIf="showPartnerColumn()">{{p.partnerName || '-'}}</td>
-        <td>{{p.email || '-'}}</td>
-        <td>{{p.phone || '-'}}</td>
-        <td>
-          <span *ngIf="p.paymentStatus === 'PAID'" class="payment-paid">✓ Paid</span>
-          <span *ngIf="p.paymentStatus !== 'PAID'" class="payment-pending">✗ Pending</span>
-        </td>
-        <td>
-          <button *ngIf="p.paymentStatus !== 'PAID'" type="button" class="small" (click)="updatePayment(p, 'PAID')">Mark Paid</button>
-          <button *ngIf="p.paymentStatus === 'PAID'" type="button" class="secondary small" (click)="updatePayment(p, 'PENDING')">Mark Pending</button>
-          <button type="button" class="danger small" (click)="removeSinglePlayer(p)">Remove</button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+<table class="players-table">
+<thead><tr><th class="select-col">Select</th><th class="serial-col">#</th><th>Player</th><th>Format</th><th *ngIf="showPartnerColumn()">Partner</th><th>Email</th><th>Phone</th><th>Payment</th><th>Action</th></tr></thead>
+<tbody>
+<tr *ngFor="let p of players; let i=index">
+<td class="select-col"><input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)"></td>
+<td class="serial-col">{{i + 1}}</td>
+<td>{{displayPlayerName(p)}}</td>
+<td>{{p.format || model.format || '-'}}</td>
+<td *ngIf="showPartnerColumn()">{{p.partnerName || '-'}}</td>
+<td>{{displayEmail(p)}}</td>
+<td>{{displayPhone(p)}}</td>
+<td><span *ngIf="p.paymentStatus === 'PAID'" class="payment-paid">✓ Paid</span><span *ngIf="p.paymentStatus !== 'PAID'" class="payment-pending">✗ Pending</span></td>
+<td><button *ngIf="p.paymentStatus !== 'PAID'" type="button" class="small" (click)="updatePayment(p, 'PAID')">Mark Paid</button>
+<button *ngIf="p.paymentStatus === 'PAID'" type="button" class="secondary small" (click)="updatePayment(p, 'PENDING')">Mark Pending</button>
+<button type="button" class="danger small" (click)="removeSinglePlayer(p)">Remove</button></td>
+</tr>
+</tbody>
+</table>
 </div>
-
-<div class="modal-backdrop" *ngIf="showPaymentModal">
-  <div class="modal-card">
-    <h3>Registration Saved</h3>
-    <p><b>{{lastRegisteredName}}</b> is registered.</p>
-    <div class="payment-note">
-      <span class="warning-line">*************** Without payment, Registration is not Valid *****************</span>
-      <p>Please complete the registration using Zelle.</p>
-      <p>Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></p>
-      <p>Zelle: <b>cacafunds&#64;gmail.com</b></p>
-      <p>Status: <b [class.payment-paid]="lastPaymentStatus === 'PAID'" [class.payment-pending]="lastPaymentStatus !== 'PAID'">{{lastPaymentStatus === 'PAID' ? 'Paid' : 'Pending'}}</b></p>
-    </div>
-    <div class="modal-actions">
-      <button type="button" (click)="markLastPaid()" *ngIf="lastPaymentStatus !== 'PAID'">Mark Paid</button>
-      <button type="button" class="secondary" (click)="showPaymentModal=false">Close</button>
-    </div>
-  </div>
-</div>` })
+` })
 export class RegistrationsComponent implements OnInit {
   tournaments:Tournament[]=[]; players:Registration[]=[]; teamSize=4; memberMessage='';
   availableFormats:string[] = ['Singles'];
@@ -178,11 +121,13 @@ export class RegistrationsComponent implements OnInit {
     this.loadPlayers();
   }
   loadPlayers(){
-    if(this.model.tournamentId && this.model.format) {
-      this.api.registrationsByFormat(this.model.tournamentId, this.model.format).subscribe(p=>{this.players=p || []; this.selectedPlayerIds={};});
-    } else if(this.model.tournamentId) {
-      this.api.registrations(this.model.tournamentId).subscribe(p=>{this.players=p || []; this.selectedPlayerIds={};});
-    }
+    if(!this.model.tournamentId) { this.players = []; this.selectedPlayerIds = {}; return; }
+    this.api.registrations(this.model.tournamentId).subscribe(p=>{
+      const allPlayers = p || [];
+      const selectedFormat = this.model.format || '';
+      this.players = selectedFormat ? allPlayers.filter((r:any) => !r.format || r.format === selectedFormat) : allPlayers;
+      this.selectedPlayerIds = {};
+    });
   }
 
   onFormatChange(){
@@ -207,20 +152,27 @@ export class RegistrationsComponent implements OnInit {
     });
   }
   register(){
+    this.registrationSuccessMessage = '';
+    this.registrationErrorMessage = '';
+    if (!this.model.tournamentId) { this.registrationErrorMessage = 'Please select a tournament before registering.'; return; }
+    if (!this.model.format) { this.registrationErrorMessage = 'Please select a format before registering.'; return; }
+    if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
     if (!this.showPartnerColumn()) this.model.partnerName = '';
     this.model.paymentStatus = this.model.paymentStatus || 'PENDING';
-    this.api.register(this.model).subscribe((saved)=>{
-      this.lastRegistered = saved;
-      this.lastRegisteredName = saved.playerName;
-      this.lastPaymentStatus = saved.paymentStatus || 'PENDING';
-      this.showPaymentModal = true;
-      const tid=this.model.tournamentId;
-      const fmt=this.model.format;
-      this.model={tournamentId:tid,playerName:'',format:fmt,paymentStatus:'PENDING', teamMemberNames:[]};
-      this.memberMessage = '';
-      this.loadPlayers();
-    })
+    const payload: Registration = {...this.model, tournamentId: this.model.tournamentId, playerName: this.model.playerName, email: this.model.email, phone: this.model.phone, partnerName: this.model.partnerName, format: this.model.format, paymentStatus: this.model.paymentStatus};
+    this.api.register(payload).subscribe({
+      next: (saved) => {
+        const savedName = this.displayPlayerName(saved);
+        this.registrationSuccessMessage = `${savedName} registered successfully.`;
+        const tid = this.model.tournamentId, fmt = this.model.format;
+        this.model = {tournamentId: tid, playerName: '', email: '', phone: '', partnerName: '', format: fmt, paymentStatus: 'PENDING', teamMemberNames: []};
+        this.memberMessage = '';
+        this.loadPlayers();
+      },
+      error: err => this.registrationErrorMessage = err?.error?.message || err?.error || 'Registration failed. Please check required fields.'
+    });
   }
+
   updatePayment(p:Registration, status:string){
     if(!p.id) return;
     this.api.updatePaymentStatus(p.id, status).subscribe(()=>this.loadPlayers());
@@ -290,9 +242,16 @@ export class RegistrationsComponent implements OnInit {
     });
   }
 
-  showPartnerColumn(): boolean {
-    return this.model?.format === 'Doubles' || this.model?.format === 'Mixed Doubles';
+
+  displayEmail(p: any): string {
+    return p?.email || p?.playerEmail || p?.memberEmail || '-';
   }
+
+  displayPhone(p: any): string {
+    return p?.phone || p?.phoneNumber || p?.mobile || p?.memberPhone || '-';
+  }
+
+  showPartnerColumn(): boolean { return this.model?.format === 'Doubles' || this.model?.format === 'Mixed Doubles'; }
 
   partnerDisplay(r: any): string {
     return this.showPartnerColumn() ? (r.partnerName || '-') : '';

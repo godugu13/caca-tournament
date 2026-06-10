@@ -1287,3 +1287,19 @@ Fixed:
 - Success message shown after registration.
 - Players View refreshes immediately after successful registration.
 - Form clears only player fields, not tournament/format selection.
+
+
+## Step 29.7A - Production Registration / Players View Fix
+
+Fixed:
+- Frontend always falls back to Render backend API URL.
+- Added Angular environment import/fallback in ApiService.
+- Added production environment file using `apiBaseUrl`.
+- Added Spring CORS config for Vercel to Render.
+- Added Render Dockerfile using Gradle image.
+- Register For page reloads all tournament registrations and filters safely on frontend.
+- Players View displays robust field fallbacks for name/email/phone.
+
+
+## Step 29.8
+Fixed Players View display, compact payment banner, CSV upload, registered players CSV download, standings CSV download, production API fallback, Render Dockerfile, and CORS config.

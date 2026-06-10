@@ -100,6 +100,9 @@ import { Registration, Tournament } from '../../models/models';
 </div>
 ` })
 export class RegistrationsComponent implements OnInit {
+  registrationSuccessMessage = '';
+  registrationErrorMessage = '';
+
   tournaments:Tournament[]=[]; players:Registration[]=[]; teamSize=4; memberMessage='';
   availableFormats:string[] = ['Singles'];
   selectedTournament?: Tournament;
@@ -243,12 +246,114 @@ export class RegistrationsComponent implements OnInit {
   }
 
 
+
+  displayPlayerName(p: any): string {
+    return p?.playerName || p?.name || p?.fullName || p?.memberName || '-';
+  }
+
   displayEmail(p: any): string {
     return p?.email || p?.playerEmail || p?.memberEmail || '-';
   }
 
   displayPhone(p: any): string {
     return p?.phone || p?.phoneNumber || p?.mobile || p?.memberPhone || '-';
+  }
+
+  onRosterFileSelected(event: any) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    if (!this.model.tournamentId || !this.model.format) {
+      alert('Please select tournament and format before uploading players.');
+      event.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = String(reader.result || '').split(/\r?\n/).map(r => r.trim()).filter(r => r);
+      if (!rows.length) return;
+      const dataRows = rows[0].toLowerCase().includes('name') ? rows.slice(1) : rows;
+      let completed = 0;
+      let created = 0;
+      dataRows.forEach(row => {
+        const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        const payload: Registration = {
+          tournamentId: this.model.tournamentId,
+          format: this.model.format,
+          playerName: cols[0] || '',
+          email: cols[1] || '',
+          phone: cols[2] || '',
+          partnerName: this.showPartnerColumn() ? (cols[3] || '') : '',
+          paymentStatus: 'PENDING',
+          teamMemberNames: []
+        };
+        if (!payload.playerName || !payload.email) {
+          completed++;
+          return;
+        }
+        this.api.register(payload).subscribe({
+          next: () => {
+            created++;
+            completed++;
+            if (completed === dataRows.length) {
+              this.registrationSuccessMessage = `${created} player(s) uploaded successfully.`;
+              this.loadPlayers();
+            }
+          },
+          error: () => {
+            completed++;
+            if (completed === dataRows.length) {
+              this.registrationSuccessMessage = `${created} player(s) uploaded successfully. Some rows failed.`;
+              this.loadPlayers();
+            }
+          }
+        });
+      });
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  downloadPlayersCsv() {
+    const headers = this.showPartnerColumn()
+      ? ['#','Player','Format','Partner','Email','Phone','Payment']
+      : ['#','Player','Format','Email','Phone','Payment'];
+    const rows = (this.players || []).map((p:any, idx:number) => {
+      if (this.showPartnerColumn()) {
+        return [idx + 1, this.displayPlayerName(p), p.format || this.model.format || '', p.partnerName || '', this.displayEmail(p), this.displayPhone(p), p.paymentStatus || 'PENDING'];
+      }
+      return [idx + 1, this.displayPlayerName(p), p.format || this.model.format || '', this.displayEmail(p), this.displayPhone(p), p.paymentStatus || 'PENDING'];
+    });
+    this.downloadCsv('registered-players.csv', headers, rows);
+  }
+
+  downloadStandingsCsv() {
+    if (!this.model.tournamentId || !this.model.format) {
+      alert('Please select tournament and format first.');
+      return;
+    }
+    this.api.standings(this.model.tournamentId, this.model.format).subscribe((standings:any[]) => {
+      const headers = ['Rank','Player/Team','Wins','PF','PA','Point Diff'];
+      const rows = (standings || []).map((s:any, idx:number) => [
+        idx + 1,
+        s.playerName || s.teamName || s.name || '',
+        s.wins ?? 0,
+        s.pointsFor ?? s.pf ?? 0,
+        s.pointsAgainst ?? s.pa ?? 0,
+        s.pointDiff ?? s.pd ?? 0
+      ]);
+      this.downloadCsv('standings.csv', headers, rows);
+    });
+  }
+
+  downloadCsv(filename: string, headers: any[], rows: any[][]) {
+    const escape = (v:any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   showPartnerColumn(): boolean { return this.model?.format === 'Doubles' || this.model?.format === 'Mixed Doubles'; }

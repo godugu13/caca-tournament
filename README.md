@@ -1303,3 +1303,11 @@ Fixed:
 
 ## Step 29.8
 Fixed Players View display, compact payment banner, CSV upload, registered players CSV download, standings CSV download, production API fallback, Render Dockerfile, and CORS config.
+
+
+## Step 29.8A
+Compile fix for missing registration component fields and methods.
+
+
+## Step 29.8B
+Compile fix: added missing displayPlayerName/displayEmail/displayPhone helpers inside RegistrationsComponent class.

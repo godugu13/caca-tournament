@@ -1311,3 +1311,136 @@ Compile fix for missing registration component fields and methods.
 
 ## Step 29.8B
 Compile fix: added missing displayPlayerName/displayEmail/displayPhone helpers inside RegistrationsComponent class.
+
+
+## Step 29.9 - Knockout Division Rules Fix
+
+Implemented knockout behavior after SRR completion:
+
+- Knockouts can be generated only after all configured SRR rounds are generated and fully scored.
+- If total active players/teams are 4 or fewer:
+  - No quarters.
+  - Generate Semifinals, then Finals.
+- If total active players/teams are 5 or more:
+  - Generate Quarters.
+  - Players/teams are split by final SRR ranking into groups of up to 8:
+    - Champions: ranks 1-8
+    - Challengers: ranks 9-16
+    - Enthusiasts: ranks 17-24
+    - Aspirants: ranks 25-32
+  - If a group has fewer than 8 players/teams, missing seeds become BYEs.
+  - Example: 15 players creates:
+    - Champions group: ranks 1-8
+    - Challengers group: ranks 9-15 with one BYE
+- Quarters seed pattern inside each group:
+  - 1 vs 8
+  - 4 vs 5
+  - 3 vs 6
+  - 2 vs 7
+- Semifinals and Finals are generated separately for each group.
+- Game Day page displays knockout matches grouped by division in scrollable sections.
+
+
+## Step 29.9A - Backend Compile Fix
+
+Fixed Java compile errors in `SrrService`:
+- Loop variable `round` is now copied to `currentRound` before lambda usage.
+- Loop variable `groupIndex` is now copied to `groupName` before lambda usage.
+
+
+## Step 29.10 - Super Admin Controls, Branding, Boards, and Mobile Score Cleanup
+
+Added:
+- Super Admin Raju Godugu can adjust Wins and Point Differential on Standings page.
+- Adjusted Wins/PD are used in ranking, so future SRR pairings and knockout seeding use adjusted ranking.
+- Individual round delete endpoint for Super Admin:
+  delete one SRR/KO round instead of deleting all rounds.
+- Board/venue number can be changed by Super Admin from Game Day/Scores.
+- Branding changed from CACA Inc. to CACA 3.0™.
+- Footer added: © CACA 3.0 owners. All rights reserved.
+- Mobile player score entry removed avatar/images and keeps player names and score inputs.
+- Doubles/Mixed Doubles team matching now uses fuzzy person key:
+  last name if available, otherwise first 5 characters of first name.
+  This reduces duplicate teams caused by minor partner-name typos.
+
+Important:
+- Please test locally before pushing:
+  backend: gradle clean bootJar -x test
+  frontend: npm run build
+
+
+## Step 29.10A - Frontend Compile Fix
+
+Fixed:
+- `scores.component.ts` had duplicate `saveBoard(...)` method names.
+- Renamed Super Admin board reassignment method to `saveMatchBoard(...)`.
+- Existing per-board score save method remains unchanged.
+
+
+## Step 29.11 - Round-Level Delete Fix
+
+Implemented Super Admin round-level delete from Scores page.
+
+Behavior:
+- Delete SRR Round 1: deletes SRR1 and all future SRR/KO rounds.
+- Delete SRR Round 2: deletes SRR2 and all future rounds.
+- Delete Pre-Quarters: deletes Pre-Quarters, Quarters, Semis, Finals.
+- Delete Quarters: deletes Quarters, Semis, Finals.
+- Delete Semis: deletes Semis and Finals.
+- Delete Finals: deletes Finals only.
+
+Purpose:
+- Correct wrong pairings or wrong manually entered data.
+- After deletion, Game Day allows generating that round/stage again and the tournament continues from there.
+
+UI:
+- Scores page round tabs now show one Super Admin delete button for the selected round.
+- Match-level delete button was removed from Game Day.
+
+
+## Step 29.12 - Round Delete + Regenerate from Scores
+
+Fixed and improved:
+- Round delete now deterministically deletes selected round and all future rounds.
+- SRR Round 2 delete removes SRR2, SRR3, SRR4, SRR5, and all knockout stages.
+- Pre-Quarters delete removes Pre-Quarters, Quarters, Semis, and Finals.
+- Quarters delete removes Quarters, Semis, and Finals.
+- Semis delete removes Semis and Finals.
+- Finals delete removes Finals only.
+- Scores page now shows a Generate button immediately after deletion:
+  "Generate Deleted Round Again".
+
+
+## Step 29.12A - Scores Page Method Fix
+
+Fixed:
+- Frontend click error: `deleteSelectedRoundAndFuture is not a function`.
+- Added missing TypeScript class methods used by Scores page template.
+- Delete action now reaches backend and refreshes score tabs.
+
+
+## Step 29.12B - Local API URL Fix
+
+Fixed:
+- Local Angular frontend now calls local backend:
+  http://localhost:8080/api
+- Production Angular build still uses Render backend from environment.prod.ts.
+- Alert popup no longer shows [object Object]; it now displays readable backend error text.
+
+Reason:
+- Local testing was still calling Render backend, so local backend logs did not change.
+
+
+## Step 29.12C - Force Local Backend for Local Angular Testing
+
+Fixed:
+- `api.service.ts` now uses:
+  `private baseUrl = environment.apiBaseUrl || this.resolveApiBaseUrl();`
+
+Local:
+- `environment.ts` has blank `apiBaseUrl`.
+- Angular at `localhost:4200` calls `http://localhost:8080/api`.
+
+Production:
+- `environment.prod.ts` points to Render backend.
+- Vercel production build calls `https://caca-tournament-backend.onrender.com/api`.

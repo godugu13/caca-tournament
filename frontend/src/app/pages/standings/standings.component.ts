@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { AdminAccessService } from '../../services/admin-access.service';
 import { Match, Standing, Tournament } from '../../models/models';
 
 type ResultGroup = { stage: string; label: string; matches: Match[]; groups: BracketGroup[] };
@@ -36,9 +37,9 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
   <section class="blue-bracket-board" *ngFor="let group of bracketGroups">
     <header class="blue-hero">
       <div class="caca-brand">
-        <div class="caca-logo">CACA</div>
+        <div class="caca-logo">CACA 3.0™</div>
         <div>
-          <h2>CACA INC.</h2>
+          <h2>CACA 3.0™</h2>
           <p>LET'S PLAY TOGETHER!</p>
         </div>
       </div>
@@ -170,9 +171,24 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
 <div *ngIf="standings.length > 0" class="card standings-card">
   <h3>{{srrStandingsTitle}}</h3>
   <table>
-    <tr><th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th></tr>
-    <tr *ngFor="let s of standings"><td>{{s.rank}}</td><td>{{s.playerName}}</td><td>{{s.wins}}</td><td>{{s.pointsFor}}</td><td>{{s.pointsAgainst}}</td><td>{{s.pointsDifferential}}</td></tr>
+    <tr>
+      <th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th>
+      <th *ngIf="isSuperAdmin()">Wins Adj</th><th *ngIf="isSuperAdmin()">PD Adj</th><th *ngIf="isSuperAdmin()">Reason</th><th *ngIf="isSuperAdmin()">Save</th>
+    </tr>
+    <tr *ngFor="let s of standings">
+      <td>{{s.rank}}</td>
+      <td>{{s.playerName}}</td>
+      <td>{{s.wins}}</td>
+      <td>{{s.pointsFor}}</td>
+      <td>{{s.pointsAgainst}}</td>
+      <td>{{s.pointsDifferential}}</td>
+      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.winsAdjustment"></td>
+      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.pointsDifferentialAdjustment"></td>
+      <td *ngIf="isSuperAdmin()"><input class="reason-input" [(ngModel)]="s.adjustmentReason" placeholder="Reason"></td>
+      <td *ngIf="isSuperAdmin()"><button type="button" class="small" (click)="saveAdjustment(s)">Save</button></td>
+    </tr>
   </table>
+  <p class="muted" *ngIf="isSuperAdmin()">Super Admin changes to Wins or Point Diff immediately affect ranking, next SRR pairings, and knockout seeding after refresh/regeneration.</p>
 </div>
 
 <div *ngIf="historyGroups.length > 0" class="card history-card">
@@ -217,7 +233,7 @@ export class StandingsComponent implements OnInit {
   latestKnockoutTitle = 'Tournament Cup';
   selectedHistoryKey = '';
 
-  constructor(private api: ApiService, private route: ActivatedRoute) {}
+  constructor(private api: ApiService, private route: ActivatedRoute, private admin: AdminAccessService) {}
 
   ngOnInit(): void {
     this.tournamentId = this.route.snapshot.paramMap.get('tournamentId') || localStorage.getItem('activeTournamentId') || '';
@@ -435,4 +451,23 @@ export class StandingsComponent implements OnInit {
     const selected = this.tournaments.find(t => t.id === this.tournamentId);
     this.selectedTournamentName = selected?.name || '';
   }
+  isSuperAdmin(): boolean {
+    return this.admin.currentPin && this.admin.currentPin() === '1123';
+  }
+
+  saveAdjustment(s: Standing) {
+    if (!this.tournamentId || !this.format || !s.playerId) return;
+    this.api.saveStandingAdjustment(this.tournamentId, this.format, {
+      playerId: s.playerId,
+      playerName: s.playerName,
+      winsAdjustment: Number(s.winsAdjustment || 0),
+      pointsDifferentialAdjustment: Number(s.pointsDifferentialAdjustment || 0),
+      reason: s.adjustmentReason || ''
+    }, '1123').subscribe({
+      next: () => this.load(),
+      error: err => alert(err?.error?.message || err?.error || 'Unable to save standing adjustment')
+    });
+  }
+
+
 }

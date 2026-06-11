@@ -71,6 +71,79 @@ public class GameDayController {
         return ResponseEntity.ok(Map.of("deleted", true, "tournamentId", tournamentId, "format", format));
     }
 
+
+    @DeleteMapping("/{tournamentId}/{format}/round")
+    public ResponseEntity<?> deleteSelectedRound(@PathVariable String tournamentId,
+                                                 @PathVariable String format,
+                                                 @RequestParam String roundType,
+                                                 @RequestParam int roundNumber,
+                                                 @RequestParam(defaultValue = "") String pin) {
+        if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Only Super Admin can delete rounds");
+
+        String selectedType = normalizeRoundType(roundType);
+        List<Match> matches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+
+        List<Match> toDelete = matches.stream()
+                .filter(m -> shouldDeleteFromSelectedRound(selectedType, roundNumber, normalizeRoundType(m.getRoundType()), m.getRoundNumber()))
+                .toList();
+
+        matchRepository.deleteAll(toDelete);
+
+        return ResponseEntity.ok(Map.of(
+                "deleted", toDelete.size(),
+                "roundType", selectedType,
+                "roundNumber", roundNumber,
+                "message", "Deleted selected round and all future rounds"
+        ));
+    }
+
+    private boolean shouldDeleteFromSelectedRound(String selectedType, int selectedRoundNumber, String matchType, int matchRoundNumber) {
+        // SRR deletion means delete selected SRR round and every future SRR + all knockouts.
+        if ("SRR".equals(selectedType)) {
+            if ("SRR".equals(matchType)) return matchRoundNumber >= selectedRoundNumber;
+            return isKnockoutStage(matchType);
+        }
+
+        // Knockout deletion means delete selected knockout stage and every later knockout stage.
+        if (isKnockoutStage(selectedType)) {
+            return isKnockoutStage(matchType) && knockoutOrder(matchType) >= knockoutOrder(selectedType);
+        }
+
+        return false;
+    }
+
+    private boolean isKnockoutStage(String type) {
+        return "PRE_QUARTERS".equals(type) || "PREQUARTERS".equals(type)
+                || "QUARTERS".equals(type) || "QUARTER_FINALS".equals(type)
+                || "SEMIFINALS".equals(type) || "SEMI_FINALS".equals(type) || "SEMIS".equals(type)
+                || "FINALS".equals(type) || "FINAL".equals(type);
+    }
+
+    private int knockoutOrder(String type) {
+        String normalized = normalizeRoundType(type);
+        if ("PRE_QUARTERS".equals(normalized) || "PREQUARTERS".equals(normalized)) return 1;
+        if ("QUARTERS".equals(normalized) || "QUARTER_FINALS".equals(normalized)) return 2;
+        if ("SEMIFINALS".equals(normalized) || "SEMI_FINALS".equals(normalized) || "SEMIS".equals(normalized)) return 3;
+        if ("FINALS".equals(normalized) || "FINAL".equals(normalized)) return 4;
+        return 999;
+    }
+
+    private String normalizeRoundType(String roundType) {
+        if (roundType == null || roundType.isBlank()) return "SRR";
+        return roundType.trim().toUpperCase().replace("-", "_").replace(" ", "_");
+    }
+
+    @PutMapping("/matches/{matchId}/board")
+    public ResponseEntity<?> updateBoard(@PathVariable String matchId,
+                                         @RequestBody Map<String, String> request,
+                                         @RequestParam(defaultValue = "") String pin) {
+        if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Only Super Admin can change board numbers");
+        Match match = matchRepository.findById(matchId).orElseThrow();
+        match.setBoardNumber(request.getOrDefault("boardNumber", match.getBoardNumber()));
+        match.setVenueName(request.getOrDefault("venueName", match.getVenueName()));
+        return ResponseEntity.ok(matchRepository.save(match));
+    }
+
     @PutMapping("/matches/{matchId}/score")
     public Match score(@PathVariable String matchId, @RequestBody Match request) {
         Match match = matchRepository.findById(matchId).orElseThrow();

@@ -13,7 +13,7 @@ export class ApiService {
   // Production:
   //   Set localStorage.cacaApiBaseUrl in browser if frontend/backend are on separate domains,
   //   or replace this with environment-based config in Step 29.
-  private baseUrl = environment.apiBaseUrl || 'https://caca-tournament-backend.onrender.com/api';
+  private baseUrl = environment.apiBaseUrl || this.resolveApiBaseUrl();
 
   constructor(private http: HttpClient) {}
 
@@ -82,4 +82,14 @@ export class ApiService {
   auditHistory(tournamentId: string, format: string): Observable<any[]> {
     return this.http.get<any[]>(`${this.baseUrl}/audits/${encodeURIComponent(tournamentId)}/${encodeURIComponent(format)}`);
   }
+  saveStandingAdjustment(tournamentId: string, format: string, adjustment: any, pin: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/standings-adjustments/${encodeURIComponent(tournamentId)}/${encodeURIComponent(format)}?pin=${encodeURIComponent(pin)}`, adjustment);
+  }
+  deleteSelectedRound(tournamentId: string, format: string, roundType: string, roundNumber: number, pin: string): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/gameday/${tournamentId}/${format}/round?roundType=${encodeURIComponent(roundType)}&roundNumber=${roundNumber}&pin=${encodeURIComponent(pin)}`);
+  }
+  updateMatchBoard(matchId: string, boardNumber: string, venueName: string, pin: string): Observable<Match> {
+    return this.http.put<Match>(`${this.baseUrl}/gameday/matches/${matchId}/board?pin=${encodeURIComponent(pin)}`, { boardNumber, venueName });
+  }
+
 }

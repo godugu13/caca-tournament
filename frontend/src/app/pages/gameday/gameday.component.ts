@@ -44,12 +44,7 @@ import { Match, Registration, Tournament } from "../../models/models";
       </select>
 
       <label>Format</label>
-      <select [(ngModel)]="format" (change)="loadPlayers()">
-        <option>Singles</option>
-        <option>Doubles</option>
-        <option>Mixed Doubles</option>
-        <option>Team Event</option>
-      </select>
+      <div class="readonly-format">{{format}}</div>
     </div>
 
     <ng-container *ngIf="selectedTournamentId">
@@ -106,6 +101,11 @@ import { Match, Registration, Tournament } from "../../models/models";
               ><p class="ok">BYE - no opponent this round</p></ng-template
             >
             <small>Status: {{ m.status }}</small>
+            <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
+              <input class="tiny-input" [(ngModel)]="m.boardNumber" placeholder="Board">
+              <button type="button" class="secondary small" (click)="saveBoard(m)">Save Board</button>
+              
+            </div>
           </div>
         </div>
       </div>
@@ -213,51 +213,34 @@ import { Match, Registration, Tournament } from "../../models/models";
 
       <div class="card">
         <h3>Knockout Rounds</h3>
-<div class="knockout-group-tabs">
-  <label>Select Knockout Group</label>
-  <select [(ngModel)]="selectedKnockoutGroup">
-    <option *ngFor="let g of knockoutGroups" [value]="g">{{g}}</option>
-  </select>
-  <small class="muted">For 32+ players/teams: Champions ranks 1-8, Challengers 9-16, Enthusiasts 17-24, Aspirants 25-32.</small>
-</div>
-        <p>
-          Knockout generation opens after SRR rounds are completed. Admin can
-          choose the starting stage based on team count and time.
+<p class="muted">After SRR is complete, knockout groups are created automatically by SRR rank: Champions, Challengers, Enthusiasts, and Aspirants. Each group has up to 8 players/teams.</p>
+<p>
+          Knockout generation opens only after all SRR rounds and scores are completed. Groups are generated automatically from final SRR standings.
         </p>
         <p class="muted">
-          Seed rules: Quarters use Rank 1 vs Rank 8, 2 vs 7, 3 vs 6, 4 vs 5.
-          Semis use winners from those bracket paths. Finals use semifinal
-          winners. If active teams are fewer than 8, start with Semifinals and
-          Finals.
+          Seed rules inside each group: Rank 1 vs 8, 2 vs 7, 3 vs 6, 4 vs 5. Missing seeds become BYEs. If total count is 4 or fewer, start with Semifinals and Finals.
         </p>
         <div class="ko-flow knockout-actions">
-          <button
-            type="button"
-            [disabled]="!canGenerateKnockout('PRE_QUARTERS')"
-            (click)="generateKnockout('PRE_QUARTERS')"
-          >
-            Generate Pre-Quarters
-          </button>
           <button
             type="button"
             [disabled]="!canGenerateKnockout('QUARTERS')"
             (click)="generateKnockout('QUARTERS')"
           >
-            Generate Quarters
+            Generate Group Quarters
           </button>
           <button
             type="button"
             [disabled]="!canGenerateKnockout('SEMIFINALS')"
             (click)="generateKnockout('SEMIFINALS')"
           >
-            Generate Semifinals
+            Generate Group Semifinals
           </button>
           <button
             type="button"
             [disabled]="!canGenerateKnockout('FINALS')"
             (click)="generateKnockout('FINALS')"
           >
-            Generate Finals
+            Generate Group Finals
           </button>
         </div>
         <div *ngIf="currentKnockoutMatches().length" class="score-link-row">
@@ -270,21 +253,28 @@ import { Match, Registration, Tournament } from "../../models/models";
           >
         </div>
 
-        <div class="match-grid" *ngIf="currentKnockoutMatches().length">
-          <div class="match-card" *ngFor="let m of currentKnockoutMatches()">
-            <b>{{ stageDisplay(m.roundType) }} - Board #{{ m.boardNumber }}</b>
-            <p>Rank {{ m.player1Rank || "-" }}: {{ m.player1Name }}</p>
-            <p>vs</p>
-            <p>Rank {{ m.player2Rank || "-" }}: {{ m.player2Name }}</p>
-            <small>Status: {{ m.status }}</small>
-            <div class="score-link-row">
-              <button
-                type="button"
-                class="secondary small"
-                (click)="goToScores()"
-              >
-                Open Score Entry
-              </button>
+        <div class="knockout-groups" *ngIf="currentKnockoutMatches().length">
+          <div class="division-section" *ngFor="let group of currentKnockoutGroups()">
+            <h4>{{ group }}</h4>
+            <div class="match-grid">
+              <div class="match-card" *ngFor="let m of currentKnockoutMatchesByGroup(group)">
+                <b>{{ stageDisplay(m.roundType) }} - {{ m.status === "BYE" ? "BYE" : "Board #" + m.boardNumber }}</b>
+                <p>Rank {{ m.player1Rank || "-" }}: {{ m.player1Name }}</p>
+                <ng-container *ngIf="m.status !== 'BYE'; else koByeBlock">
+                  <p>vs</p>
+                  <p>Rank {{ m.player2Rank || "-" }}: {{ m.player2Name }}</p>
+                </ng-container>
+                <ng-template #koByeBlock><p class="ok">BYE - advances automatically</p></ng-template>
+                <small>Status: {{ m.status }}</small>
+                <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
+                  <input class="tiny-input" [(ngModel)]="m.boardNumber" placeholder="Board">
+                  <button type="button" class="secondary small" (click)="saveBoard(m)">Save Board</button>
+                  
+                </div>
+                <div class="score-link-row">
+                  <button type="button" class="secondary small" (click)="goToScores()">Open Score Entry</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -791,13 +781,21 @@ tournaments: Tournament[] = [];
   }
 
   currentKnockoutMatches() {
-    const order = ["PRE_QUARTERS", "QUARTERS", "SEMIFINALS", "FINALS"];
-    const generated = order.filter((stage) =>
-      this.knockoutStageGenerated(stage),
-    );
+    const order = ["QUARTERS", "SEMIFINALS", "FINALS"];
+    const generated = order.filter((stage) => this.knockoutStageGenerated(stage));
     if (!generated.length) return [];
     const currentStage = generated[generated.length - 1];
     return this.matches.filter((m) => m.roundType === currentStage);
+  }
+
+  currentKnockoutGroups() {
+    const preferred = ["Champions", "Challengers", "Enthusiasts", "Aspirants", "Main"];
+    const groups = [...new Set(this.currentKnockoutMatches().map((m:any) => m.roundGroup || "Main"))];
+    return preferred.filter(g => groups.includes(g)).concat(groups.filter(g => !preferred.includes(g)));
+  }
+
+  currentKnockoutMatchesByGroup(group: string) {
+    return this.currentKnockoutMatches().filter((m:any) => (m.roundGroup || "Main") === group);
   }
 
   activeParticipantCount() {
@@ -855,40 +853,26 @@ tournaments: Tournament[] = [];
   }
 
   canGenerateKnockout(stage: string) {
-    if (
-      !this.selectedTournamentId ||
-      !this.canOpenKnockouts() ||
-      this.knockoutStageGenerated(stage)
-    )
-      return false;
+    if (!this.selectedTournamentId || !this.canOpenKnockouts() || this.knockoutStageGenerated(stage)) return false;
     const count = this.activeParticipantCount();
-    if (stage === "PRE_QUARTERS" && count < 16) return false;
-    if (stage === "QUARTERS" && count < 8) return false;
+
+    // Requirements:
+    // - SRR must be fully complete first.
+    // - If fewer than 5 players/teams, no quarters; generate semifinals/finals only.
+    // - If 5 or more, generate group quarters. Groups are split by final SRR rank in blocks of 8.
+    if (stage === "QUARTERS") return count >= 5;
+
     if (stage === "SEMIFINALS") {
-      if (count < 4) return false;
-      if (
-        this.knockoutStageGenerated("QUARTERS") &&
-        !this.knockoutStageCompleted("QUARTERS")
-      )
-        return false;
-      if (
-        this.knockoutStageGenerated("PRE_QUARTERS") &&
-        !this.knockoutStageCompleted("PRE_QUARTERS")
-      )
-        return false;
+      if (count < 2) return false;
+      if (count <= 4) return true;
+      return this.knockoutStageGenerated("QUARTERS") && this.knockoutStageCompleted("QUARTERS");
     }
+
     if (stage === "FINALS") {
-      if (this.knockoutStageGenerated("SEMIFINALS"))
-        return this.knockoutStageCompleted("SEMIFINALS");
-      return count >= 2;
+      return this.knockoutStageGenerated("SEMIFINALS") && this.knockoutStageCompleted("SEMIFINALS");
     }
-    if (
-      stage === "QUARTERS" &&
-      this.knockoutStageGenerated("PRE_QUARTERS") &&
-      !this.knockoutStageCompleted("PRE_QUARTERS")
-    )
-      return false;
-    return true;
+
+    return false;
   }
 
   knockoutStageCompleted(stage: string) {
@@ -936,6 +920,28 @@ tournaments: Tournament[] = [];
       });
   }
 
+
+
+  isSuperAdmin(): boolean {
+    return this.admin.isSuperAdmin();
+  }
+
+  deleteOneRound(m: Match) {
+    if (!m.roundType || !m.roundNumber || !this.selectedTournamentId) return;
+    if (!confirm(`Delete ${this.stageDisplay(m.roundType)} Round #${m.roundNumber}? This deletes only this round/stage for ${this.format}.`)) return;
+    this.api.deleteSelectedRound(this.selectedTournamentId, this.format, m.roundType, m.roundNumber, this.admin.currentPin()).subscribe({
+      next: () => this.loadMatches(),
+      error: err => alert(err?.error || 'Unable to delete selected round')
+    });
+  }
+
+  saveBoard(m: Match) {
+    if (!m.id) return;
+    this.api.updateMatchBoard(m.id, m.boardNumber || '', m.venueName || 'Board', this.admin.currentPin()).subscribe({
+      next: () => this.loadMatches(),
+      error: err => alert(err?.error || 'Unable to update board number')
+    });
+  }
 
   validateSelectedTournament() {
     if (this.selectedTournamentId && !this.tournaments.some(t => t.id === this.selectedTournamentId)) {

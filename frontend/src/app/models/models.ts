@@ -61,7 +61,18 @@ export interface Match {
   status?: string;
   winnerId?: string;
 }
-export interface Standing { playerId?: string; rank: number; playerName: string; wins: number; pointsFor: number; pointsAgainst: number; pointsDifferential: number; }
+export interface Standing {
+  playerId?: string;
+  rank: number;
+  playerName: string;
+  wins: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointsDifferential: number;
+  winsAdjustment?: number;
+  pointsDifferentialAdjustment?: number;
+  adjustmentReason?: string;
+}
 
 export interface Member { id?: string; membershipId: string; sequenceNumber?: number; name: string; email?: string; phone?: string; }
 

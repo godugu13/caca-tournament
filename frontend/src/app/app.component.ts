@@ -10,8 +10,8 @@ import { AdminAccessService } from './services/admin-access.service';
   template: `
     <header class="topbar">
       <div class="brand">
-        <div class="logo-text">CACA Inc.</div>
-        <div><h1>Capital Area Carrom Association</h1><p>Tournament Management System</p></div>
+        <div class="logo-text">CACA 3.0™</div>
+        <div><h1>CACA 3.0™</h1><p>Tournament Management System</p></div>
       </div>
       <nav>
         <a routerLink="/">Dashboard</a>
@@ -29,7 +29,7 @@ import { AdminAccessService } from './services/admin-access.service';
         <a *ngIf="!isAdmin()" routerLink="/admin-login">Admin Login</a>
       </nav>
     </header>
-    <main><router-outlet /></main>`
+    <main><router-outlet /></main><footer class="app-footer">© CACA 3.0 owners. All rights reserved.</footer>`
 })
 export class AppComponent {
   constructor(private admin: AdminAccessService) {

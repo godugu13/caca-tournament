@@ -7,6 +7,7 @@ import com.caca.tournament.model.Tournament;
 import com.caca.tournament.repository.MatchRepository;
 import com.caca.tournament.repository.RegistrationRepository;
 import com.caca.tournament.repository.TournamentRepository;
+import com.caca.tournament.repository.StandingAdjustmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,7 @@ public class SrrService {
     private final RegistrationRepository registrationRepository;
     private final MatchRepository matchRepository;
     private final TournamentRepository tournamentRepository;
+    private final StandingAdjustmentRepository standingAdjustmentRepository;
 
     public List<Match> generateSrrRound(String tournamentId, String format, int roundNumber, String venueName) {
         if (tournamentId == null || tournamentId.isBlank()) {
@@ -137,72 +139,238 @@ public class SrrService {
     }
 
 
-    public List<Match> generateKnockoutRound(String tournamentId, String format, String stage) {
-        return generateKnockoutRound(tournamentId, format, stage, "");
+    public List<Match> generateKnockoutRound(String tournamentId, String format, String requestedStage) {
+        return generateKnockoutRound(tournamentId, format, requestedStage, "");
     }
 
     public List<Match> generateKnockoutRound(String tournamentId, String format, String requestedStage, String group) {
         String stage = normalizeStage(requestedStage);
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new IllegalStateException("Selected tournament was not found. Please refresh Game Day page and select the tournament again."));
+
         List<Match> allMatches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+        ensureAllSrrRoundsComplete(allMatches, tournament.getSrrRounds());
+
         boolean stageAlreadyGenerated = allMatches.stream().anyMatch(m -> stage.equalsIgnoreCase(m.getRoundType()));
         if (stageAlreadyGenerated) {
             throw new IllegalStateException(stageLabel(stage) + " is already generated for " + format);
         }
 
         List<Match> result = new ArrayList<>();
+
         if ("QUARTERS".equals(stage)) {
             List<Standing> standings = calculateStandings(tournamentId, format);
-            if (standings.size() >= 32) {
-                String[] groups = {"Champions", "Challengers", "Enthusiasts", "Rising Stars"};
+            if (standings.size() < 5) {
+                throw new IllegalStateException("Quarters are not needed for " + standings.size() + " players/teams. Generate Semifinals instead.");
+            }
+
+            Map<String, List<Participant>> divisions = divisionParticipants(standings);
+            int board = 1;
+            for (Map.Entry<String, List<Participant>> entry : divisions.entrySet()) {
+                List<Participant> participants = entry.getValue();
+                if (participants.size() >= 2) {
+                    List<Match> groupMatches = createSeededMatchesWithByes(tournamentId, format, "QUARTERS", entry.getKey(), participants, board);
+                    result.addAll(groupMatches);
+                    board += groupMatches.size();
+                }
+            }
+            return matchRepository.saveAll(result);
+        }
+
+        if ("SEMIFINALS".equals(stage)) {
+            if (knockoutRoundCompleted(allMatches, "QUARTERS")) {
+                Map<String, List<Participant>> winnersByGroup = winnersByGroupFromPriorStage(allMatches, "QUARTERS");
                 int board = 1;
-                for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-                    String groupName = groups[groupIndex];
-                    int from = groupIndex * 8;
-                    int to = Math.min(from + 8, standings.size());
-                    if (to - from < 8) break;
-                    List<Participant> groupParticipants = standings.subList(from, to).stream()
-                            .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), groupName))
-                            .toList();
-                    result.addAll(createSeededMatches(tournamentId, format, stage, groupName, groupParticipants, board));
-                    board += 4;
+                for (Map.Entry<String, List<Participant>> entry : winnersByGroup.entrySet()) {
+                    List<Participant> winners = entry.getValue();
+                    if (winners.size() >= 2) {
+                        List<Match> groupMatches = createSemifinalMatches(tournamentId, format, entry.getKey(), winners, board, true);
+                        result.addAll(groupMatches);
+                        board += groupMatches.size();
+                    }
                 }
                 return matchRepository.saveAll(result);
             }
+
+            List<Standing> standings = calculateStandings(tournamentId, format);
+            if (standings.size() > 4) {
+                throw new IllegalStateException("Generate and complete Quarters before Semifinals for " + standings.size() + " players/teams.");
+            }
+            if (standings.size() < 2) {
+                throw new IllegalStateException("Semifinals need at least 2 players/teams.");
+            }
+
+            List<Participant> participants = standings.stream()
+                    .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), "Champions"))
+                    .toList();
+            result.addAll(createSemifinalMatches(tournamentId, format, "Champions", participants, 1, false));
+            return matchRepository.saveAll(result);
         }
 
-        List<Participant> participants = participantsForKnockout(tournamentId, format, stage, allMatches);
-        int minimum = minimumCount(stage);
-        if (participants.size() < minimum) {
-            throw new IllegalStateException(stageLabel(stage) + " needs at least " + minimum + " players/teams. Current active count is " + participants.size());
-        }
-        boolean groupedKnockout = participants.stream().map(p -> normalizedGroup(p.group())).distinct().count() > 1;
-        int expected = expectedCount(stage);
-        if (!groupedKnockout && participants.size() > expected) {
-            participants = participants.subList(0, expected);
-        }
-        if (!groupedKnockout
-                && ("PRE_QUARTERS".equals(stage) || "QUARTERS".equals(stage) || "SEMIFINALS".equals(stage) || "FINALS".equals(stage))
-                && participants.size() > minimum) {
-            participants = participants.subList(0, minimum);
+        if ("FINALS".equals(stage)) {
+            if (!knockoutRoundCompleted(allMatches, "SEMIFINALS")) {
+                throw new IllegalStateException("Complete Semifinals before generating Finals.");
+            }
+
+            Map<String, List<Participant>> winnersByGroup = winnersByGroupFromPriorStage(allMatches, "SEMIFINALS");
+            int board = 1;
+            for (Map.Entry<String, List<Participant>> entry : winnersByGroup.entrySet()) {
+                List<Participant> winners = entry.getValue();
+                if (winners.size() >= 2) {
+                    List<Match> groupMatches = createFinalMatches(tournamentId, format, entry.getKey(), winners, board);
+                    result.addAll(groupMatches);
+                    board += groupMatches.size();
+                }
+            }
+            if (result.isEmpty()) {
+                throw new IllegalStateException("No final matches can be generated. Check Semifinals winners.");
+            }
+            return matchRepository.saveAll(result);
         }
 
-        Map<String, List<Participant>> participantsByGroup = participants.stream()
-                .collect(Collectors.groupingBy(p -> normalizedGroup(p.group()), LinkedHashMap::new, Collectors.toList()));
-        int board = 1;
-        for (Map.Entry<String, List<Participant>> entry : participantsByGroup.entrySet()) {
-            List<Participant> groupParticipants = entry.getValue();
-            if (("SEMIFINALS".equals(stage) && groupParticipants.size() == 4) ||
-                    ("FINALS".equals(stage) && groupParticipants.size() == 2) ||
-                    ("QUARTERS".equals(stage) && groupParticipants.size() == 8) ||
-                    ("PRE_QUARTERS".equals(stage) && groupParticipants.size() == 16)) {
-                result.addAll(createSeededMatches(tournamentId, format, stage, entry.getKey(), groupParticipants, board));
-                board += Math.max(1, groupParticipants.size() / 2);
+        throw new IllegalStateException("Unsupported knockout stage: " + requestedStage);
+    }
+
+    
+    private void ensureAllSrrRoundsComplete(List<Match> allMatches, int srrRounds) {
+        if (srrRounds <= 0) return;
+        for (int round = 1; round <= srrRounds; round++) {
+            final int currentRound = round;
+            List<Match> roundMatches = allMatches.stream()
+                    .filter(m -> "SRR".equalsIgnoreCase(m.getRoundType()))
+                    .filter(m -> m.getRoundNumber() == currentRound)
+                    .toList();
+            if (roundMatches.isEmpty()) {
+                throw new IllegalStateException("Generate and complete all SRR rounds before knockout. Missing SRR Round #" + round);
+            }
+            if (!isRoundCompleted(allMatches.stream().filter(m -> "SRR".equalsIgnoreCase(m.getRoundType())).toList(), round)) {
+                throw new IllegalStateException("Complete all scores for SRR Round #" + round + " before generating knockout rounds.");
             }
         }
-        if (result.isEmpty()) {
-            result.addAll(createSeededMatches(tournamentId, format, stage, "Main", participants, 1));
+    }
+
+    private Map<String, List<Participant>> divisionParticipants(List<Standing> standings) {
+        String[] groupNames = {"Champions", "Challengers", "Enthusiasts", "Aspirants"};
+        Map<String, List<Participant>> result = new LinkedHashMap<>();
+        for (int groupIndex = 0; groupIndex < groupNames.length; groupIndex++) {
+            int from = groupIndex * 8;
+            if (from >= standings.size()) break;
+            int to = Math.min(from + 8, standings.size());
+            final String groupName = groupNames[groupIndex];
+            List<Participant> group = standings.subList(from, to).stream()
+                    .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), groupName))
+                    .toList();
+            if (!group.isEmpty()) result.put(groupName, group);
         }
-        return matchRepository.saveAll(result);
+        return result;
+    }
+
+    private List<Match> createSeededMatchesWithByes(String tournamentId, String format, String stage, String groupName, List<Participant> participants, int startingBoard) {
+        List<Participant> slots = new ArrayList<>(participants);
+        while (slots.size() < 8) slots.add(null);
+
+        int[][] pairings = new int[][] {
+                {0, 7}, // 1 vs 8
+                {3, 4}, // 4 vs 5
+                {2, 5}, // 3 vs 6
+                {1, 6}  // 2 vs 7
+        };
+
+        List<Match> result = new ArrayList<>();
+        int board = startingBoard;
+        for (int[] pairing : pairings) {
+            Participant p1 = slots.get(pairing[0]);
+            Participant p2 = slots.get(pairing[1]);
+            if (p1 == null && p2 == null) continue;
+            if (p1 == null) {
+                p1 = p2;
+                p2 = null;
+            }
+            result.add(createMatch(tournamentId, format, stage, groupName, p1, p2, board++));
+        }
+        return result;
+    }
+
+    private List<Match> createSemifinalMatches(String tournamentId, String format, String groupName, List<Participant> participants, int startingBoard, boolean fromQuarterWinners) {
+        List<Participant> slots = new ArrayList<>(participants);
+        List<int[]> pairings = new ArrayList<>();
+
+        if (fromQuarterWinners) {
+            while (slots.size() < 4) slots.add(null);
+            pairings.add(new int[]{0, 1});
+            pairings.add(new int[]{2, 3});
+        } else {
+            while (slots.size() < 4) slots.add(null);
+            pairings.add(new int[]{0, 3}); // 1 vs 4, bye if missing
+            pairings.add(new int[]{1, 2}); // 2 vs 3, bye if missing
+        }
+
+        List<Match> result = new ArrayList<>();
+        int board = startingBoard;
+        for (int[] pairing : pairings) {
+            Participant p1 = slots.get(pairing[0]);
+            Participant p2 = slots.get(pairing[1]);
+            if (p1 == null && p2 == null) continue;
+            if (p1 == null) {
+                p1 = p2;
+                p2 = null;
+            }
+            result.add(createMatch(tournamentId, format, "SEMIFINALS", groupName, p1, p2, board++));
+        }
+        return result;
+    }
+
+    private List<Match> createFinalMatches(String tournamentId, String format, String groupName, List<Participant> participants, int startingBoard) {
+        List<Match> result = new ArrayList<>();
+        if (participants.size() < 2) return result;
+        result.add(createMatch(tournamentId, format, "FINALS", groupName, participants.get(0), participants.get(1), startingBoard));
+        return result;
+    }
+
+    private Match createMatch(String tournamentId, String format, String stage, String groupName, Participant p1, Participant p2, int board) {
+        Match match = new Match();
+        match.setTournamentId(tournamentId);
+        match.setFormat(format);
+        match.setRoundType(stage);
+        match.setRoundGroup(groupName);
+        match.setRoundNumber(knockoutRoundNumber(stage));
+        match.setVenueName("Board");
+        match.setBoardNumber(String.valueOf(board));
+        match.setPlayer1Id(p1.id());
+        match.setPlayer1Name(p1.name());
+        match.setPlayer1Rank(p1.rank());
+
+        if (p2 == null) {
+            match.setPlayer2Id("BYE");
+            match.setPlayer2Name("BYE");
+            match.setPlayer2Rank(null);
+            match.setStatus("BYE");
+            match.setPlayer1Score(25);
+            match.setPlayer2Score(0);
+            match.setWinnerId(p1.id());
+            match.setScoreFinalized(true);
+        } else {
+            match.setPlayer2Id(p2.id());
+            match.setPlayer2Name(p2.name());
+            match.setPlayer2Rank(p2.rank());
+        }
+        return match;
+    }
+
+    private Map<String, List<Participant>> winnersByGroupFromPriorStage(List<Match> allMatches, String priorStage) {
+        Map<String, List<Match>> byGroup = matchesForStage(allMatches, priorStage).stream()
+                .collect(Collectors.groupingBy(m -> normalizedGroup(m.getRoundGroup()), LinkedHashMap::new, Collectors.toList()));
+
+        Map<String, List<Participant>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Match>> entry : byGroup.entrySet()) {
+            List<Participant> winners = entry.getValue().stream()
+                    .sorted(Comparator.comparingInt(m -> parseBoardNumber(m.getBoardNumber())))
+                    .map(m -> winnerParticipantWithGroup(m, entry.getKey()))
+                    .filter(Objects::nonNull)
+                    .toList();
+            result.put(entry.getKey(), winners);
+        }
+        return result;
     }
 
     private List<Match> createSeededMatches(String tournamentId, String format, String stage, String groupName, List<Participant> participants, int startingBoard) {
@@ -466,6 +634,8 @@ public class SrrService {
 
         List<Standing> standings = new ArrayList<>(map.values());
         standings.forEach(s -> s.setPointsDifferential(s.getPointsFor() - s.getPointsAgainst()));
+        applyStandingAdjustments(tournamentId, format, standings);
+
         standings.sort(Comparator.comparingInt(Standing::getWins).reversed()
                 .thenComparing(Comparator.comparingInt(Standing::getPointsDifferential).reversed())
                 .thenComparing(Standing::getPlayerName));
@@ -528,6 +698,27 @@ public class SrrService {
                 .collect(Collectors.toSet());
     }
 
+    private void applyStandingAdjustments(String tournamentId, String format, List<Standing> standings) {
+        Map<String, com.caca.tournament.model.StandingAdjustment> adjustments = standingAdjustmentRepository
+                .findByTournamentIdAndFormat(tournamentId, format)
+                .stream()
+                .collect(Collectors.toMap(com.caca.tournament.model.StandingAdjustment::getPlayerId, a -> a, (a, b) -> b));
+
+        for (Standing standing : standings) {
+            com.caca.tournament.model.StandingAdjustment adjustment = adjustments.get(standing.getPlayerId());
+            if (adjustment == null) continue;
+
+            int winsAdj = adjustment.getWinsAdjustment() == null ? 0 : adjustment.getWinsAdjustment();
+            int pdAdj = adjustment.getPointsDifferentialAdjustment() == null ? 0 : adjustment.getPointsDifferentialAdjustment();
+
+            standing.setWins(standing.getWins() + winsAdj);
+            standing.setPointsDifferential(standing.getPointsDifferential() + pdAdj);
+            standing.setWinsAdjustment(winsAdj);
+            standing.setPointsDifferentialAdjustment(pdAdj);
+            standing.setAdjustmentReason(adjustment.getReason());
+        }
+    }
+
     private List<Registration> uniquePlayingUnits(List<Registration> registrations, String format) {
         if (!isPairFormat(format)) {
             return registrations;
@@ -554,14 +745,27 @@ public class SrrService {
         if (isPairFormat(format)
                 && registration.getPartnerName() != null && !registration.getPartnerName().isBlank()) {
             List<String> names = new ArrayList<>();
-            names.add(normalizeTeamNameToken(registration.getPlayerName()));
-            names.add(normalizeTeamNameToken(registration.getPartnerName()));
+            names.add(fuzzyPersonKey(registration.getPlayerName()));
+            names.add(fuzzyPersonKey(registration.getPartnerName()));
             Collections.sort(names);
             return normalizeTeamNameToken(registration.getTournamentId()) + "__" +
                     normalizeTeamNameToken(format) + "__" +
                     String.join("__", names);
         }
         return registration.getId();
+    }
+
+    private String fuzzyPersonKey(String value) {
+        String normalized = normalizeName(value).replaceAll("[^a-z0-9 ]", "").trim();
+        if (normalized.isBlank()) return "";
+        String[] parts = normalized.split("\\s+");
+        if (parts.length >= 2 && parts[parts.length - 1].length() >= 4) {
+            return parts[parts.length - 1];
+        }
+        if (parts[0].length() >= 5) {
+            return parts[0].substring(0, 5);
+        }
+        return parts[0];
     }
 
     private boolean isPairFormat(String format) {

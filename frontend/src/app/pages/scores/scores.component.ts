@@ -38,6 +38,24 @@ import { Match, Tournament } from '../../models/models';
     </button>
   </div>
   <p><b>Displaying:</b> {{selectedRoundLabel()}}</p>
+
+  <div class="round-delete-panel" *ngIf="isSuperAdmin() && selectedRoundKey">
+    <p class="warning">
+      Super Admin: deleting this round also deletes all future rounds/stages so matchups can be regenerated correctly.
+    </p>
+    <button type="button" class="danger" (click)="deleteSelectedRoundAndFuture()">
+      Delete {{selectedRoundLabel()}} and Future Rounds
+    </button>
+  </div>
+
+  <div class="round-regenerate-panel" *ngIf="isSuperAdmin() && lastDeletedRoundType">
+    <p class="ok">
+      {{lastDeletedRoundLabel}} and future rounds were deleted. You can regenerate from here.
+    </p>
+    <button type="button" class="yellow-btn" (click)="regenerateDeletedRound()">
+      Generate {{lastDeletedRoundLabel}} Again
+    </button>
+  </div>
 </div>
 
 <div *ngIf="selectedTournamentId && !matches.length" class="card">
@@ -50,6 +68,11 @@ import { Match, Tournament } from '../../models/models';
       <div class="score-header">
         <b>{{m.roundType || 'SRR'}} Round {{m.roundNumber}} - Venue #{{m.boardNumber}}</b>
         <span [class.ok]="m.scoreFinalized">{{m.scoreFinalized ? 'Finalized' : 'In Progress'}}</span>
+      </div>
+      <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
+        <label>Board</label>
+        <input class="tiny-input" [(ngModel)]="m.boardNumber">
+        <button type="button" class="secondary small" (click)="saveMatchBoard(m)">Save Board</button>
       </div>
 
       <div class="score-vs-layout">
@@ -128,6 +151,9 @@ export class ScoresComponent implements OnInit {
   selectedRoundKey = '';
   dirtyKeyMap: {[key: string]: boolean} = {};
   byeDirtyMap: {[key: string]: boolean} = {};
+  lastDeletedRoundType = '';
+  lastDeletedRoundNumber = 0;
+  lastDeletedRoundLabel = '';
 
   constructor(private api: ApiService, private admin: AdminAccessService, private router: Router) {}
 
@@ -357,6 +383,78 @@ export class ScoresComponent implements OnInit {
     return current.length > 0 && current.every(m => !!m.scoreFinalized);
   }
 
+
+
+  displayError(err: any): string {
+    if (!err) return 'Unknown error';
+    if (typeof err === 'string') return err;
+    if (typeof err?.error === 'string') return err.error;
+    if (err?.error?.message) return err.error.message;
+    if (err?.message) return err.message;
+    try { return JSON.stringify(err.error || err); } catch { return 'Unknown error'; }
+  }
+
+  deleteSelectedRoundAndFuture() {
+    if (!this.selectedTournamentId || !this.selectedRoundKey) return;
+    const info = this.selectedRoundInfo();
+    if (!info) return;
+
+    const label = this.selectedRoundLabel();
+    const confirmed = confirm(`Delete ${label} and all future rounds/stages? This cannot be undone. You can regenerate from this page after correction.`);
+    if (!confirmed) return;
+
+    this.api.deleteSelectedRound(this.selectedTournamentId, this.format, info.roundType, info.roundNumber, this.admin.currentPin()).subscribe({
+      next: () => {
+        this.lastDeletedRoundType = info.roundType;
+        this.lastDeletedRoundNumber = info.roundNumber;
+        this.lastDeletedRoundLabel = label;
+        this.loadMatches(false);
+      },
+      error: err => alert(this.displayError(err))
+    });
+  }
+
+
+  regenerateDeletedRound() {
+    if (!this.selectedTournamentId || !this.lastDeletedRoundType) return;
+
+    if (this.lastDeletedRoundType === 'SRR') {
+      this.api.generateRound(this.selectedTournamentId, this.format, this.lastDeletedRoundNumber, 'Board').subscribe({
+        next: () => {
+          const key = `${this.lastDeletedRoundType}:${this.lastDeletedRoundNumber}`;
+          this.lastDeletedRoundType = '';
+          this.lastDeletedRoundNumber = 0;
+          this.lastDeletedRoundLabel = '';
+          this.loadMatches(false);
+          setTimeout(() => this.selectedRoundKey = key, 200);
+        },
+        error: err => alert(this.displayError(err))
+      });
+      return;
+    }
+
+    this.api.generateKnockout(this.selectedTournamentId, this.format, this.lastDeletedRoundType).subscribe({
+      next: () => {
+        const key = `${this.lastDeletedRoundType}:1`;
+        this.lastDeletedRoundType = '';
+        this.lastDeletedRoundNumber = 0;
+        this.lastDeletedRoundLabel = '';
+        this.loadMatches(false);
+        setTimeout(() => this.selectedRoundKey = key, 200);
+      },
+      error: err => alert(this.displayError(err))
+    });
+  }
+
+
+  selectedRoundInfo(): { roundType: string, roundNumber: number } | null {
+    if (!this.selectedRoundKey) return null;
+    const parts = this.selectedRoundKey.split(':');
+    const roundType = (parts[0] || 'SRR').toUpperCase();
+    const roundNumber = Number(parts[1] || 1);
+    return { roundType, roundNumber: roundNumber || 1 };
+  }
+
   goToStandings() {
     if (!this.selectedTournamentId || !this.format) return;
     this.router.navigate(['/standings', this.selectedTournamentId, this.format]);
@@ -384,4 +482,13 @@ export class ScoresComponent implements OnInit {
     this.boards.forEach(b => this.dirtyKeyMap[this.boardKey(m, b)] = false);
     this.byeDirtyMap[this.matchKey(m)] = false;
   }
+  isSuperAdmin(): boolean { return this.admin.isSuperAdmin(); }
+  saveMatchBoard(m: Match) {
+    if (!m.id) return;
+    this.api.updateMatchBoard(m.id, m.boardNumber || '', m.venueName || 'Board', this.admin.currentPin()).subscribe({
+      next: () => this.rememberAndLoad(),
+      error: err => alert(err?.error || 'Unable to update board')
+    });
+  }
+
 }

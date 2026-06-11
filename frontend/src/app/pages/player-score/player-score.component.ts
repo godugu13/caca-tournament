@@ -48,13 +48,11 @@ import { Match, Tournament } from '../../models/models';
 
     <div class="mobile-vs">
       <div class="mobile-team">
-        <span class="avatar">👨</span>
         <b>{{match.player1Name}}</b>
         <strong>{{total(1)}}</strong>
       </div>
       <div class="vs-circle">VS</div>
       <div class="mobile-team">
-        <span class="avatar">👩</span>
         <b>{{match.player2Name}}</b>
         <strong>{{total(2)}}</strong>
       </div>

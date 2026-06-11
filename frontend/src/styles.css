@@ -1461,3 +1461,52 @@ main {
   padding: 12px;
   margin-top: 12px;
 }
+
+
+/* Step 29.13 - tournament date range, discounts, and capacity */
+.discount-section {
+  grid-column: 1 / -1;
+  border: 1px dashed #0b78a0;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f8fcff;
+}
+
+.discount-card {
+  display: grid;
+  grid-template-columns: 220px 160px 1fr;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid #d7edf8;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 10px;
+  background: white;
+}
+
+.discount-card textarea {
+  min-height: 54px;
+}
+
+.discount-enable {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.discount-registration-box {
+  grid-column: 1 / -1;
+  border: 1px solid #d7edf8;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fcff;
+}
+
+.fee-summary {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px;
+  background: #fffdf2;
+  border-radius: 10px;
+}

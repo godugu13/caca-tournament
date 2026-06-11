@@ -1444,3 +1444,53 @@ Local:
 Production:
 - `environment.prod.ts` points to Render backend.
 - Vercel production build calls `https://caca-tournament-backend.onrender.com/api`.
+
+
+## Step 29.13 - Tournament Date Range, Discounts, and Capacity
+
+Added:
+- If organizer selects more than one tournament format, Add Tournament shows From Date and To Date.
+- Single-format tournament keeps one Tournament Date.
+- Discount setup on tournament creation/edit:
+  - EC Team Discount
+  - President Panel Discount
+  - Life Time Members Discount
+  - Women Player Discount
+  - Senior Citizen Discount
+  - Under 21 Discount
+  - Under 18 Discount
+- Organizer can enter discount amounts.
+- Organizer can enter eligible name lists for EC Team, President Panel, and Life Time Members.
+- Registration page displays only organizer-enabled discounts.
+- Name-list discounts show dropdown during registration.
+- Women discount shows Gender field and applies only when Gender = Women.
+- Registration page shows Base Fee, Discount, Final Fee.
+- Registration page shows spots left when total number of players/teams is configured.
+- Registration saves finalFee and discount information with the registration.
+
+
+## Step 29.13A - Frontend Compile Fix
+
+Fixed missing helper methods:
+- RegistrationsComponent:
+  - spotsLeft()
+  - enabledDiscounts()
+  - selectedDiscount()
+  - selectedDiscountNames()
+  - selectedDiscountRequiresName()
+  - onDiscountChange()
+  - discountAmount()
+  - finalFee()
+
+- TournamentsComponent:
+  - mergeDiscountOptions()
+  - multiFormatSelected()
+  - needsNameList()
+  - parseNames()
+  - normalizeDiscountOptions()
+
+
+## Step 29.13B - mergeDiscountOptions Compile Fix
+
+Fixed:
+- `TournamentsComponent.mergeDiscountOptions()` method was referenced by `editTournament()` but not present as a class method.

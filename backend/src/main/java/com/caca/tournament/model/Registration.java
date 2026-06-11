@@ -28,4 +28,10 @@ public class Registration {
     private Boolean attended = false;
     private String paymentStatus = "PENDING";
     private String seedRank;
+    private String discountType;
+    private String discountLabel;
+    private String discountName;
+    private String gender;
+    private Double discountAmount = 0.0;
+    private Double finalFee = 0.0;
 }

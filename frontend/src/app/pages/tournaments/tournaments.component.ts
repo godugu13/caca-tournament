@@ -33,9 +33,19 @@ import { Tournament } from '../../models/models';
         </label>
       </div>
 
-      <div class="field-group date-field">
+      <div class="field-group date-field" *ngIf="!multiFormatSelected()">
         <label>Tournament Date <span class="required">*</span></label>
         <input [(ngModel)]="model.tournamentDate" type="date">
+      </div>
+
+      <div class="field-group date-field" *ngIf="multiFormatSelected()">
+        <label>Tournament From Date <span class="required">*</span></label>
+        <input [(ngModel)]="model.tournamentDate" type="date">
+      </div>
+
+      <div class="field-group date-field" *ngIf="multiFormatSelected()">
+        <label>Tournament To Date <span class="required">*</span></label>
+        <input [(ngModel)]="model.tournamentEndDate" type="date">
       </div>
 
       <div class="field-group fee-field">
@@ -82,6 +92,23 @@ import { Tournament } from '../../models/models';
         <input *ngFor="let p of model.teamPlayerNames; let i=index" [(ngModel)]="model.teamPlayerNames![i]" placeholder="Player {{i+1}} name optional">
       </div>
 
+
+      <div class="discount-section">
+        <h3>Discount Setup</h3>
+        <p class="muted">Select discounts the organizer wants to offer. These will appear on registration page and deduct from final fee.</p>
+
+        <div class="discount-card" *ngFor="let d of model.discountOptions">
+          <label class="discount-enable">
+            <input type="checkbox" [(ngModel)]="d.enabled">
+            <b>{{d.label}}</b>
+          </label>
+          <input type="number" min="0" [(ngModel)]="d.amount" placeholder="Discount Amount">
+          <textarea *ngIf="needsNameList(d.type)" [(ngModel)]="d.eligibleNamesText" placeholder="Enter eligible names separated by comma or new line"></textarea>
+          <small class="muted" *ngIf="needsNameList(d.type)">Names entered here show as dropdown during registration.</small>
+          <small class="muted" *ngIf="d.type === 'WOMEN'">Registration page will show Gender selection for this discount.</small>
+        </div>
+      </div>
+
       <div class="field-group pin-field">
         <label>Organization / Tournament Admin PIN <span class="required">*</span></label>
         <div class="pin-row">
@@ -114,7 +141,7 @@ import { Tournament } from '../../models/models';
   <tr *ngFor="let t of tournaments">
     <td>{{t.name}}</td>
     <td>{{(t.formats || []).join(', ')}}</td>
-    <td>{{t.tournamentDate}}</td>
+    <td>{{t.tournamentDate}}<span *ngIf="t.tournamentEndDate"> to {{t.tournamentEndDate}}</span></td>
     <td>{{ currencySymbol }}{{t.registrationFee || 0}}</td>
     <td>{{t.address}}</td>
     <td>{{t.srrRounds}}</td>
@@ -152,7 +179,30 @@ export class TournamentsComponent implements OnInit {
   constructor(private api:ApiService, private admin: AdminAccessService){}
   ngOnInit(){this.load()}
   load(){this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x=>this.tournaments=x)}
-  emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[]}; }
+  emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any}; }
+  defaultDiscountOptions(){
+    return [
+      {type:'EC_TEAM', label:'EC Team Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'PRESIDENT_PANEL', label:'President Panel Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'LIFETIME_MEMBER', label:'Life Time Members Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'WOMEN', label:'Women Player Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'SENIOR', label:'Senior Citizen Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'UNDER_21', label:'Under 21 Discount', amount:0, enabled:false, eligibleNames:[]},
+      {type:'UNDER_18', label:'Under 18 Discount', amount:0, enabled:false, eligibleNames:[]}
+    ];
+  }
+  multiFormatSelected(){ return (this.model.formats || []).length > 1; }
+  needsNameList(type:string){ return ['EC_TEAM','PRESIDENT_PANEL','LIFETIME_MEMBER'].includes(type); }
+  normalizeDiscountOptions(){
+    this.model.discountOptions = (this.model.discountOptions || this.defaultDiscountOptions() as any).map((d:any)=>({
+      ...d,
+      amount: Number(d.amount || 0),
+      eligibleNames: this.parseNames(d.eligibleNamesText || (d.eligibleNames || []).join(','))
+    }));
+  }
+  parseNames(value:string): string[] {
+    return String(value || '').split(/[\n,]+/).map(v=>v.trim()).filter(v=>v);
+  }
   onTournamentTypeChange(){ this.resizeTeamPlayers(); }
   isFormatSelected(format:string){ return (this.model.formats || []).includes(format); }
   toggleFormat(format:string, event:any){
@@ -163,6 +213,15 @@ export class TournamentsComponent implements OnInit {
     this.model.tournamentType = this.model.formats[0] || '';
     this.resizeTeamPlayers();
   }
+
+  mergeDiscountOptions(existing:any[] = []) {
+    const defs:any[] = this.defaultDiscountOptions();
+    return defs.map(d => ({
+      ...d,
+      ...((existing || []).find((e:any) => e.type === d.type) || {})
+    }));
+  }
+
   formatDescription(format:string){
     if(format === 'Singles') return 'Individual matches (1 vs 1)';
     if(format === 'Doubles') return 'Two players per team (2 vs 2)';
@@ -179,6 +238,7 @@ export class TournamentsComponent implements OnInit {
     if(!this.model.formats || this.model.formats.length === 0) this.model.formats=['Singles'];
     this.model.tournamentType = this.model.formats[0] || '';
     this.model.registrationFee = Number(this.model.registrationFee || 0);
+    this.normalizeDiscountOptions();
     this.model.srrRounds = Number(this.model.srrRounds || 5);
     this.model.knockoutRounds = Number(this.model.knockoutRounds || 0);
     this.model.adminPin = (this.model.adminPin || '').replace(/[^0-9]/g, '').slice(0, 4);
@@ -193,7 +253,7 @@ export class TournamentsComponent implements OnInit {
       error: err => alert(err?.error || 'Unable to save tournament')
     })
   }
-  editTournament(t:Tournament){ this.model = JSON.parse(JSON.stringify(t)); this.editMode = true; this.showAdminPin = false; window.scrollTo({top:0, behavior:'smooth'}); }
+  editTournament(t:Tournament){ this.model = JSON.parse(JSON.stringify(t)); this.model.discountOptions = this.mergeDiscountOptions(this.model.discountOptions as any); (this.model.discountOptions as any[]).forEach((d:any)=>d.eligibleNamesText=(d.eligibleNames||[]).join(', ')); this.editMode = true; this.showAdminPin = false; window.scrollTo({top:0, behavior:'smooth'}); }
   cancelEdit(){ this.model=this.emptyModel(); this.editMode=false; this.showAdminPin=false; }
   askDelete(t:Tournament){ this.pendingDelete = t; this.deletePin = ''; }
   cancelDelete(){ this.pendingDelete = undefined; this.deletePin = ''; }

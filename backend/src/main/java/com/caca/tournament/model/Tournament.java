@@ -21,6 +21,7 @@ public class Tournament {
     private String teamName;
     private List<String> teamPlayerNames = new ArrayList<>();
     private LocalDate tournamentDate;
+    private LocalDate tournamentEndDate;
     private Double registrationFee = 0.0;
     private String venueName;
     private String address;
@@ -31,4 +32,16 @@ public class Tournament {
     private String adminPin = "1123";
     private List<String> formats = new ArrayList<>();
     private String status = "OPEN";
+
+    private List<DiscountOption> discountOptions = new ArrayList<>();
+
+    @Data
+    public static class DiscountOption {
+        private String type;
+        private String label;
+        private Double amount = 0.0;
+        private Boolean enabled = false;
+        private List<String> eligibleNames = new ArrayList<>();
+    }
+
 }

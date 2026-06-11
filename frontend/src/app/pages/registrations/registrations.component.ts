@@ -9,7 +9,9 @@ import { Registration, Tournament } from '../../models/models';
 
 <div class="payment-note compact-payment-note">
   <span class="warning-line">Payment required to confirm registration.</span>
-  <span>Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></span>
+  <span>Base Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></span>
+  <span *ngIf="selectedTournament?.totalNumberOfPlayers">Spots Left: <b>{{spotsLeft()}}</b> / {{selectedTournament?.totalNumberOfPlayers}}</span>
+  <span>Final Fee: <b>{{finalFee() | currency:'USD':'symbol':'1.0-2'}}</b></span>
   <span>Zelle: <b>cacafunds&#64;gmail.com</b></span>
 </div>
 
@@ -43,6 +45,44 @@ import { Registration, Tournament } from '../../models/models';
     <div class="field-group"><label>Full Name <span class="required">*</span></label><input [(ngModel)]="model.playerName" placeholder="Full Name"></div>
     <div class="field-group"><label>Phone</label><input [(ngModel)]="model.phone" placeholder="Phone"></div>
     <div class="field-group" *ngIf="showPartnerColumn()"><label>Partner Name <span class="required">*</span></label><input [(ngModel)]="model.partnerName" placeholder="Partner Name"></div>
+
+
+    <div class="discount-registration-box" *ngIf="enabledDiscounts().length">
+      <h3>Discount / Eligibility</h3>
+      <p class="muted">Optional. Select discount only if applicable. Discount will be deducted from final fee.</p>
+
+      <div class="field-group">
+        <label>Discount Type</label>
+        <select [(ngModel)]="model.discountType" (change)="onDiscountChange()">
+          <option value="">No Discount</option>
+          <option *ngFor="let d of enabledDiscounts()" [value]="d.type">{{d.label}} - {{d.amount || 0 | currency:'USD':'symbol':'1.0-2'}}</option>
+        </select>
+      </div>
+
+      <div class="field-group" *ngIf="selectedDiscountRequiresName()">
+        <label>Eligible Name</label>
+        <select [(ngModel)]="model.discountName">
+          <option value="">Select Name</option>
+          <option *ngFor="let n of selectedDiscountNames()" [value]="n">{{n}}</option>
+        </select>
+      </div>
+
+      <div class="field-group" *ngIf="model.discountType === 'WOMEN'">
+        <label>Gender</label>
+        <select [(ngModel)]="model.gender">
+          <option value="">Select</option>
+          <option value="Women">Women</option>
+          <option value="Men">Men</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="fee-summary">
+        <span>Base Fee: {{selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2'}}</span>
+        <span>Discount: -{{discountAmount() | currency:'USD':'symbol':'1.0-2'}}</span>
+        <b>Final Fee: {{finalFee() | currency:'USD':'symbol':'1.0-2'}}</b>
+      </div>
+    </div>
 
     <div class="field-group">
       <label>Payment Status</label>
@@ -80,7 +120,7 @@ import { Registration, Tournament } from '../../models/models';
 
 <div class="table-scroll players-table-scroll">
 <table class="players-table">
-<thead><tr><th class="select-col">Select</th><th class="serial-col">#</th><th>Player</th><th>Format</th><th *ngIf="showPartnerColumn()">Partner</th><th>Email</th><th>Phone</th><th>Payment</th><th>Action</th></tr></thead>
+<thead><tr><th class="select-col">Select</th><th class="serial-col">#</th><th>Player</th><th>Format</th><th *ngIf="showPartnerColumn()">Partner</th><th>Email</th><th>Phone</th><th>Final Fee</th><th>Payment</th><th>Action</th></tr></thead>
 <tbody>
 <tr *ngFor="let p of players; let i=index">
 <td class="select-col"><input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)"></td>
@@ -90,6 +130,7 @@ import { Registration, Tournament } from '../../models/models';
 <td *ngIf="showPartnerColumn()">{{p.partnerName || '-'}}</td>
 <td>{{displayEmail(p)}}</td>
 <td>{{displayPhone(p)}}</td>
+<td>{{p.finalFee || 0 | currency:'USD':'symbol':'1.0-2'}}</td>
 <td><span *ngIf="p.paymentStatus === 'PAID'" class="payment-paid">✓ Paid</span><span *ngIf="p.paymentStatus !== 'PAID'" class="payment-pending">✗ Pending</span></td>
 <td><button *ngIf="p.paymentStatus !== 'PAID'" type="button" class="small" (click)="updatePayment(p, 'PAID')">Mark Paid</button>
 <button *ngIf="p.paymentStatus === 'PAID'" type="button" class="secondary small" (click)="updatePayment(p, 'PENDING')">Mark Pending</button>
@@ -112,7 +153,7 @@ export class RegistrationsComponent implements OnInit {
   lastRegistered?: Registration;
   lastRegisteredName = '';
   lastPaymentStatus = 'PENDING';
-  model:Registration={tournamentId:'',playerName:'',format:'Singles',paymentStatus:'PENDING', teamMemberNames:[]};
+  model:Registration={tournamentId:'',playerName:'',format:'Singles',paymentStatus:'PENDING', teamMemberNames:[], discountType:'', discountAmount:0, finalFee:0};
   constructor(private api:ApiService){}
   ngOnInit(){this.api.tournaments().subscribe(t=>this.tournaments=t)}
 
@@ -154,6 +195,49 @@ export class RegistrationsComponent implements OnInit {
       }
     });
   }
+
+  spotsLeft(): number {
+    const total = Number(this.selectedTournament?.totalNumberOfPlayers || 0);
+    if (!total) return 0;
+    return Math.max(0, total - (this.players || []).length);
+  }
+
+
+  enabledDiscounts(): any[] {
+    return ((this.selectedTournament as any)?.discountOptions || [])
+      .filter((d:any) => d.enabled && Number(d.amount || 0) > 0);
+  }
+
+  selectedDiscount(): any {
+    return this.enabledDiscounts().find((d:any) => d.type === this.model.discountType);
+  }
+
+  selectedDiscountNames(): string[] {
+    return this.selectedDiscount()?.eligibleNames || [];
+  }
+
+  selectedDiscountRequiresName(): boolean {
+    return ['EC_TEAM', 'PRESIDENT_PANEL', 'LIFETIME_MEMBER'].includes(this.model.discountType || '');
+  }
+
+  onDiscountChange() {
+    this.model.discountName = '';
+    this.model.gender = '';
+  }
+
+  discountAmount(): number {
+    const selected:any = this.selectedDiscount();
+    if (!selected) return 0;
+    if (this.selectedDiscountRequiresName() && !this.model.discountName) return 0;
+    if (this.model.discountType === 'WOMEN' && this.model.gender !== 'Women') return 0;
+    return Number(selected.amount || 0);
+  }
+
+  finalFee(): number {
+    const base = Number(this.selectedTournament?.registrationFee || 0);
+    return Math.max(0, base - this.discountAmount());
+  }
+
   register(){
     this.registrationSuccessMessage = '';
     this.registrationErrorMessage = '';
@@ -162,13 +246,27 @@ export class RegistrationsComponent implements OnInit {
     if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
     if (!this.showPartnerColumn()) this.model.partnerName = '';
     this.model.paymentStatus = this.model.paymentStatus || 'PENDING';
-    const payload: Registration = {...this.model, tournamentId: this.model.tournamentId, playerName: this.model.playerName, email: this.model.email, phone: this.model.phone, partnerName: this.model.partnerName, format: this.model.format, paymentStatus: this.model.paymentStatus};
+    const payload: Registration = {...this.model,
+      tournamentId: this.model.tournamentId,
+      playerName: this.model.playerName,
+      email: this.model.email,
+      phone: this.model.phone,
+      partnerName: this.model.partnerName,
+      format: this.model.format,
+      paymentStatus: this.model.paymentStatus,
+      discountType: this.model.discountType || '',
+      discountLabel: this.selectedDiscount()?.label || '',
+      discountName: this.model.discountName || '',
+      gender: this.model.gender || '',
+      discountAmount: this.discountAmount(),
+      finalFee: this.finalFee()
+    };
     this.api.register(payload).subscribe({
       next: (saved) => {
         const savedName = this.displayPlayerName(saved);
         this.registrationSuccessMessage = `${savedName} registered successfully.`;
         const tid = this.model.tournamentId, fmt = this.model.format;
-        this.model = {tournamentId: tid, playerName: '', email: '', phone: '', partnerName: '', format: fmt, paymentStatus: 'PENDING', teamMemberNames: []};
+        this.model = {tournamentId: tid, playerName: '', email: '', phone: '', partnerName: '', format: fmt, paymentStatus: 'PENDING', teamMemberNames: [], discountType:'', discountAmount:0, finalFee:0};
         this.memberMessage = '';
         this.loadPlayers();
       },

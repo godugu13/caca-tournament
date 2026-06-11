@@ -1,3 +1,12 @@
+export interface DiscountOption {
+  type: string;
+  label: string;
+  amount?: number;
+  enabled?: boolean;
+  eligibleNames?: string[];
+  eligibleNamesText?: string;
+}
+
 export interface Tournament {
   id?: string;
   name: string;
@@ -7,6 +16,7 @@ export interface Tournament {
   teamPlayerNames?: string[];
   description?: string;
   tournamentDate?: string;
+  tournamentEndDate?: string;
   registrationFee?: number;
   venueName?: string;
   address?: string;
@@ -17,6 +27,7 @@ export interface Tournament {
   adminPin?: string;
   status?: string;
   winnerId?: string;
+  discountOptions?: DiscountOption[];
 }
 export interface Registration {
   id?: string;
@@ -33,6 +44,12 @@ export interface Registration {
   attended?: boolean;
   paymentStatus?: string;
   seedRank?: string;
+  discountType?: string;
+  discountLabel?: string;
+  discountName?: string;
+  gender?: string;
+  discountAmount?: number;
+  finalFee?: number;
 }
 export interface Match {
   id?: string;
@@ -60,6 +77,7 @@ export interface Match {
   scoreFinalized?: boolean;
   status?: string;
   winnerId?: string;
+  discountOptions?: DiscountOption[];
 }
 export interface Standing {
   playerId?: string;

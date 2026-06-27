@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Map;
 
@@ -139,4 +140,18 @@ public class TournamentController {
         if (isSuperAdminPin(normalized)) return true;
         return tournament != null && tournament.getAdminPin() != null && tournament.getAdminPin().equals(normalized);
     }
+    private void normalizeDiscountOptions(Tournament tournament) {
+        if (tournament.getDiscountOptions() == null) return;
+        tournament.getDiscountOptions().forEach(d -> {
+            if ((d.getEligibleNames() == null || d.getEligibleNames().isEmpty())
+                    && d.getEligibleNamesText() != null && !d.getEligibleNamesText().isBlank()) {
+                d.setEligibleNames(Arrays.stream(d.getEligibleNamesText().split("[\\n,]+"))
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .toList());
+            }
+        });
+    }
+
+
 }

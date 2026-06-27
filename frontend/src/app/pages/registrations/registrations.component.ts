@@ -27,9 +27,10 @@ import { Registration, Tournament } from '../../models/models';
 
     <div class="field-group">
       <label>Format <span class="required">*</span></label>
-      <select [(ngModel)]="model.format" (change)="onFormatChange()">
+      <select *ngIf="availableFormats.length > 1" [(ngModel)]="model.format" (change)="onFormatChange()">
         <option *ngFor="let f of availableFormats" [value]="f">{{f}}</option>
       </select>
+      <input *ngIf="availableFormats.length <= 1" [ngModel]="model.format" disabled>
     </div>
 
     <div class="field-group email-field">
@@ -61,7 +62,7 @@ import { Registration, Tournament } from '../../models/models';
 
       <div class="field-group" *ngIf="selectedDiscountRequiresName()">
         <label>Eligible Name</label>
-        <select [(ngModel)]="model.discountName">
+        <select [(ngModel)]="model.discountName" (change)="updatePaymentByFinalFee()">
           <option value="">Select Name</option>
           <option *ngFor="let n of selectedDiscountNames()" [value]="n">{{n}}</option>
         </select>
@@ -69,7 +70,7 @@ import { Registration, Tournament } from '../../models/models';
 
       <div class="field-group" *ngIf="model.discountType === 'WOMEN'">
         <label>Gender</label>
-        <select [(ngModel)]="model.gender">
+        <select [(ngModel)]="model.gender" (change)="updatePaymentByFinalFee()">
           <option value="">Select</option>
           <option value="Women">Women</option>
           <option value="Men">Men</option>
@@ -159,9 +160,14 @@ export class RegistrationsComponent implements OnInit {
 
   onTournamentChange(){
     this.selectedTournament = this.tournaments.find(t => t.id === this.model.tournamentId);
+    this.normalizeSelectedTournamentDiscounts();
     this.availableFormats = this.selectedTournament?.formats?.length ? this.selectedTournament.formats : [this.selectedTournament?.tournamentType || 'Singles'];
     this.model.format = this.availableFormats[0] || 'Singles';
     this.memberMessage='';
+    this.model.discountType = '';
+    this.model.discountName = '';
+    this.model.gender = '';
+    this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : 'PENDING';
     this.loadPlayers();
   }
   loadPlayers(){
@@ -196,6 +202,39 @@ export class RegistrationsComponent implements OnInit {
     });
   }
 
+
+  normalizeSelectedTournamentDiscounts() {
+    const discounts:any[] = ((this.selectedTournament as any)?.discountOptions || []);
+    discounts.forEach((d:any) => {
+      if ((!d.eligibleNames || !d.eligibleNames.length) && d.eligibleNamesText) {
+        d.eligibleNames = this.parseDiscountNames(d.eligibleNamesText);
+      }
+      if (d.eligibleNames && d.eligibleNames.length === 1 && String(d.eligibleNames[0]).includes(',')) {
+        d.eligibleNames = this.parseDiscountNames(String(d.eligibleNames[0]));
+      }
+      d.eligibleNames = this.parseDiscountNames((d.eligibleNames || []).join(','));
+    });
+  }
+
+
+  parseDiscountNames(value:string): string[] {
+    return String(value || '')
+      .split(/[\n,]+/)
+      .map(v => v.trim())
+      .filter(v => v);
+  }
+
+
+  updatePaymentByFinalFee() {
+    this.model.discountAmount = this.discountAmount();
+    this.model.finalFee = this.finalFee();
+    if (this.model.finalFee <= 0) {
+      this.model.paymentStatus = 'PAID';
+    } else if (!this.model.paymentStatus || this.model.paymentStatus === 'PAID') {
+      this.model.paymentStatus = 'PENDING';
+    }
+  }
+
   spotsLeft(): number {
     const total = Number(this.selectedTournament?.totalNumberOfPlayers || 0);
     if (!total) return 0;
@@ -213,8 +252,11 @@ export class RegistrationsComponent implements OnInit {
   }
 
   selectedDiscountNames(): string[] {
-    return this.selectedDiscount()?.eligibleNames || [];
+    const selected:any = this.selectedDiscount();
+    if (!selected) return [];
+    return this.parseDiscountNames((selected.eligibleNames || []).join(',') || selected.eligibleNamesText || '');
   }
+
 
   selectedDiscountRequiresName(): boolean {
     return ['EC_TEAM', 'PRESIDENT_PANEL', 'LIFETIME_MEMBER'].includes(this.model.discountType || '');
@@ -223,7 +265,9 @@ export class RegistrationsComponent implements OnInit {
   onDiscountChange() {
     this.model.discountName = '';
     this.model.gender = '';
+    this.updatePaymentByFinalFee();
   }
+
 
   discountAmount(): number {
     const selected:any = this.selectedDiscount();
@@ -245,7 +289,8 @@ export class RegistrationsComponent implements OnInit {
     if (!this.model.format) { this.registrationErrorMessage = 'Please select a format before registering.'; return; }
     if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
     if (!this.showPartnerColumn()) this.model.partnerName = '';
-    this.model.paymentStatus = this.model.paymentStatus || 'PENDING';
+    this.updatePaymentByFinalFee();
+    this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : (this.model.paymentStatus || 'PENDING');
     const payload: Registration = {...this.model,
       tournamentId: this.model.tournamentId,
       playerName: this.model.playerName,
@@ -266,7 +311,7 @@ export class RegistrationsComponent implements OnInit {
         const savedName = this.displayPlayerName(saved);
         this.registrationSuccessMessage = `${savedName} registered successfully.`;
         const tid = this.model.tournamentId, fmt = this.model.format;
-        this.model = {tournamentId: tid, playerName: '', email: '', phone: '', partnerName: '', format: fmt, paymentStatus: 'PENDING', teamMemberNames: [], discountType:'', discountAmount:0, finalFee:0};
+        this.model = {tournamentId: tid, playerName: '', email: '', phone: '', partnerName: '', format: fmt, paymentStatus: this.finalFee() <= 0 ? 'PAID' : 'PENDING', teamMemberNames: [], discountType:'', discountAmount:0, finalFee:0};
         this.memberMessage = '';
         this.loadPlayers();
       },

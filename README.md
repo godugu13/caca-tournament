@@ -1533,3 +1533,22 @@ Fixed:
 Expected result:
 - Local `npm start` uses `http://localhost:8080/api`.
 - Vercel `npm run build` uses `https://caca-tournament-backend.onrender.com/api`.
+
+
+## Step 29.13F - Registration Discount Display and Auto-Paid Fix
+
+Fixed:
+- Eligible names now display in registration dropdown even after editing tournament.
+- If final fee is 0 because discount >= registration fee, payment status automatically becomes PAID.
+- If only one format is selected for tournament, registration page shows read-only format instead of dropdown.
+- Discount name parsing supports comma-separated and newline-separated names.
+
+
+## Step 29.13G - Registration Helper Compile Fix
+
+Fixed missing `RegistrationsComponent` methods:
+- normalizeSelectedTournamentDiscounts()
+- parseDiscountNames()
+- updatePaymentByFinalFee()
+
+These are required by Step 29.13F discount dropdown, eligible names, and auto-paid behavior.

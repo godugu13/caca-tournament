@@ -1506,3 +1506,15 @@ Fixed:
 - For one format, end date is cleared.
 - For multiple formats, end date defaults to from date if left blank.
 - Save failure now shows a readable error message instead of a generic failure.
+
+
+## Step 29.13D - Production API URL Fix
+
+Fixed:
+- Production frontend was calling `https://caca-tournament.vercel.app/api/...`, causing 405 errors.
+- Frontend API URL is now environment-driven:
+  - Local: `http://localhost:8080/api`
+  - Production: `https://caca-tournament-backend.onrender.com/api`
+- Removed production auto-detection that incorrectly pointed API calls to the Vercel frontend domain.
+
+No feature cleanup or Step 30 changes included.

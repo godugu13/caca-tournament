@@ -13,26 +13,9 @@ export class ApiService {
   // Production:
   //   Set localStorage.cacaApiBaseUrl in browser if frontend/backend are on separate domains,
   //   or replace this with environment-based config in Step 29.
-  private baseUrl = environment.apiBaseUrl || this.resolveApiBaseUrl();
+  private baseUrl = environment.apiBaseUrl;
 
   constructor(private http: HttpClient) {}
-
-  private resolveApiBaseUrl(): string {
-    const override = localStorage.getItem('cacaApiBaseUrl');
-    if (override && override.trim()) return override.trim().replace(/\/$/, '');
-
-    const host = window.location.hostname;
-    const protocol = window.location.protocol;
-
-    // Render/Railway/Vercel style: frontend and backend may be separate.
-    // During beta, use localStorage override:
-    // localStorage.setItem('cacaApiBaseUrl', 'https://your-backend-url.onrender.com/api')
-    if (host !== 'localhost' && host !== '127.0.0.1' && !/^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) {
-      return `${protocol}//${host}/api`;
-    }
-
-    return `${protocol}//${host}:8080/api`;
-  }
   tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments`); }
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
   dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }

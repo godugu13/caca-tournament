@@ -1518,3 +1518,18 @@ Fixed:
 - Removed production auto-detection that incorrectly pointed API calls to the Vercel frontend domain.
 
 No feature cleanup or Step 30 changes included.
+
+
+## Step 29.13E - Angular Production Build Configuration Fix
+
+Fixed:
+- Angular production configuration was missing from `angular.json`.
+- Production build was using `environment.ts`, which points to `http://localhost:8080/api`.
+- Added file replacement:
+  `src/environments/environment.ts` -> `src/environments/environment.prod.ts`
+- `package.json` build script now runs:
+  `ng build --configuration production`
+
+Expected result:
+- Local `npm start` uses `http://localhost:8080/api`.
+- Vercel `npm run build` uses `https://caca-tournament-backend.onrender.com/api`.

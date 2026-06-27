@@ -42,6 +42,7 @@ public class Tournament {
         private Double amount = 0.0;
         private Boolean enabled = false;
         private List<String> eligibleNames = new ArrayList<>();
+        private String eligibleNamesText;
     }
 
 }

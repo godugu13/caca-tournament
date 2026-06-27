@@ -1494,3 +1494,15 @@ Fixed missing helper methods:
 
 Fixed:
 - `TournamentsComponent.mergeDiscountOptions()` method was referenced by `editTournament()` but not present as a class method.
+
+
+## Step 29.13C - Tournament Save Fix
+
+Fixed:
+- Discount setup now sends clean backend fields only: type, label, enabled, amount, eligibleNames.
+- UI-only text field is removed from frontend save payload.
+- Backend also tolerates `eligibleNamesText` in case browser cache sends old data.
+- Admin PIN defaults safely to current PIN or 1123 if blank/invalid.
+- For one format, end date is cleared.
+- For multiple formats, end date defaults to from date if left blank.
+- Save failure now shows a readable error message instead of a generic failure.

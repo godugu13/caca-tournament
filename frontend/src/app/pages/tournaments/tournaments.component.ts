@@ -241,19 +241,46 @@ export class TournamentsComponent implements OnInit {
     this.normalizeDiscountOptions();
     this.model.srrRounds = Number(this.model.srrRounds || 5);
     this.model.knockoutRounds = Number(this.model.knockoutRounds || 0);
+    this.model.totalNumberOfPlayers = this.model.totalNumberOfPlayers ? Number(this.model.totalNumberOfPlayers) : undefined;
     this.model.adminPin = (this.model.adminPin || '').replace(/[^0-9]/g, '').slice(0, 4);
-    if (!this.model.adminPin || !this.model.adminPin.trim()) this.model.adminPin = this.admin.currentPin() || '';
+    if (!this.model.adminPin || this.model.adminPin.length !== 4) {
+      this.model.adminPin = this.admin.currentPin() || '1123';
+    }
+    if (!this.multiFormatSelected()) {
+      this.model.tournamentEndDate = undefined;
+    } else if (!this.model.tournamentEndDate) {
+      this.model.tournamentEndDate = this.model.tournamentDate;
+    }
     if (this.isFormatSelected('Team Event')) this.model.playersPerTeam = Number(this.model.playersPerTeam || 3);
-    const request = this.editMode && this.model.id ? this.api.updateTournament(this.model.id, this.model) : this.api.createTournament(this.model);
+
+    const payload: Tournament = JSON.parse(JSON.stringify(this.model));
+    const request = this.editMode && payload.id ? this.api.updateTournament(payload.id, payload) : this.api.createTournament(payload);
     request.subscribe({
       next: () => {
         this.cancelEdit();
         this.load();
       },
-      error: err => alert(err?.error || 'Unable to save tournament')
-    })
+      error: err => alert(this.displayError(err))
+    });
   }
-  editTournament(t:Tournament){ this.model = JSON.parse(JSON.stringify(t)); this.model.discountOptions = this.mergeDiscountOptions(this.model.discountOptions as any); (this.model.discountOptions as any[]).forEach((d:any)=>d.eligibleNamesText=(d.eligibleNames||[]).join(', ')); this.editMode = true; this.showAdminPin = false; window.scrollTo({top:0, behavior:'smooth'}); }
+
+  displayError(err:any): string {
+    if (!err) return 'Unable to save tournament';
+    if (typeof err === 'string') return err;
+    if (typeof err?.error === 'string') return err.error;
+    if (err?.error?.message) return err.error.message;
+    if (err?.message) return err.message;
+    try { return JSON.stringify(err.error || err); } catch { return 'Unable to save tournament'; }
+  }
+
+  editTournament(t:Tournament){
+    this.model = JSON.parse(JSON.stringify(t));
+    this.model.discountOptions = this.mergeDiscountOptions((this.model.discountOptions as any) || []) as any;
+    (this.model.discountOptions as any[]).forEach((d:any) => d.eligibleNamesText = (d.eligibleNames || []).join(', '));
+    this.editMode = true;
+    this.showAdminPin = false;
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
   cancelEdit(){ this.model=this.emptyModel(); this.editMode=false; this.showAdminPin=false; }
   askDelete(t:Tournament){ this.pendingDelete = t; this.deletePin = ''; }
   cancelDelete(){ this.pendingDelete = undefined; this.deletePin = ''; }

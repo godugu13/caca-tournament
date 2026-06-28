@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { AdminAccessService } from '../../services/admin-access.service';
-import { Tournament } from '../../models/models';
+import { Tournament, Registration } from '../../models/models';
 
 @Component({
   selector: 'app-tournaments',
@@ -48,9 +48,26 @@ import { Tournament } from '../../models/models';
         <input [(ngModel)]="model.tournamentEndDate" type="date">
       </div>
 
+      <div class="field-group date-field">
+        <label>Tournament Start Time</label>
+        <input [(ngModel)]="model.tournamentStartTime" type="time">
+      </div>
+
+      <div class="field-group date-field">
+        <label>Tournament End Time</label>
+        <input [(ngModel)]="model.tournamentEndTime" type="time">
+      </div>
+
       <div class="field-group fee-field">
         <label>Registration Fee ($)</label>
         <input [(ngModel)]="model.registrationFee" type="number" min="0" placeholder="0">
+      </div>
+
+
+      <div class="schedule-preview">
+        <b>Schedule Preview</b>
+        <span>{{modelSchedule()}}</span>
+        <span *ngIf="modelTime()">Time: {{modelTime()}}</span>
       </div>
 
       <div class="field-group venue-field">
@@ -141,18 +158,39 @@ import { Tournament } from '../../models/models';
   <tr *ngFor="let t of tournaments">
     <td>{{t.name}}</td>
     <td>{{(t.formats || []).join(', ')}}</td>
-    <td>{{t.tournamentDate}}<span *ngIf="t.tournamentEndDate"> to {{t.tournamentEndDate}}</span></td>
+    <td>{{tournamentSchedule(t)}}<br><small *ngIf="tournamentTime(t)">Time: {{tournamentTime(t)}}</small></td>
     <td>{{ currencySymbol }}{{t.registrationFee || 0}}</td>
     <td>{{t.address}}</td>
     <td>{{t.srrRounds}}</td>
     <td>{{t.knockoutRounds}}</td>
     <td>{{t.status}}</td>
     <td>
+      <button type="button" class="secondary small" (click)="viewRegisteredPlayers(t)">View Players</button>
       <button type="button" class="secondary small" (click)="editTournament(t)">Edit</button>
       <button type="button" class="danger small" (click)="askDelete(t)">Delete</button>
     </td>
   </tr>
 </table>
+</div>
+
+
+<div class="card" *ngIf="selectedPlayersTournament">
+  <h3>Registered Players - {{selectedPlayersTournament.name}}</h3>
+  <p class="muted" *ngIf="selectedTournamentPlayers.length === 0">No players registered yet.</p>
+  <div class="table-scroll" *ngIf="selectedTournamentPlayers.length">
+    <table>
+      <tr><th>#</th><th>Player</th><th>Format</th><th>Partner</th><th>Email</th><th>Phone</th><th>Payment</th></tr>
+      <tr *ngFor="let p of selectedTournamentPlayers; let i=index">
+        <td>{{i+1}}</td>
+        <td>{{p.playerName}}</td>
+        <td>{{p.format}}</td>
+        <td>{{p.partnerName || '-'}}</td>
+        <td>{{p.email}}</td>
+        <td>{{p.phone}}</td>
+        <td>{{p.paymentStatus}}</td>
+      </tr>
+    </table>
+  </div>
 </div>
 
 <div class="card form delete-confirm" *ngIf="pendingDelete">
@@ -168,6 +206,8 @@ import { Tournament } from '../../models/models';
 })
 export class TournamentsComponent implements OnInit {
   tournaments: Tournament[]=[];
+  selectedPlayersTournament?: Tournament;
+  selectedTournamentPlayers: Registration[] = [];
   allFormats = ['Singles','Doubles','Mixed Doubles','Team Event'];
   currencySymbol = '$';
   showAdminPin = false;
@@ -179,7 +219,7 @@ export class TournamentsComponent implements OnInit {
   constructor(private api:ApiService, private admin: AdminAccessService){}
   ngOnInit(){this.load()}
   load(){this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x=>this.tournaments=x)}
-  emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any}; }
+  emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any, tournamentStartTime:'09:00', tournamentEndTime:'19:00'}; }
   defaultDiscountOptions(){
     return [
       {type:'EC_TEAM', label:'EC Team Discount', amount:0, enabled:false, eligibleNames:[]},
@@ -251,6 +291,8 @@ export class TournamentsComponent implements OnInit {
     } else if (!this.model.tournamentEndDate) {
       this.model.tournamentEndDate = this.model.tournamentDate;
     }
+    this.model.tournamentStartTime = this.model.tournamentStartTime || '';
+    this.model.tournamentEndTime = this.model.tournamentEndTime || '';
     if (this.isFormatSelected('Team Event')) this.model.playersPerTeam = Number(this.model.playersPerTeam || 3);
 
     const payload: Tournament = JSON.parse(JSON.stringify(this.model));
@@ -273,6 +315,55 @@ export class TournamentsComponent implements OnInit {
     try { return JSON.stringify(err.error || err); } catch { return 'Unable to save tournament'; }
   }
 
+
+
+  tournamentSchedule(t:Tournament): string {
+    const start = t.tournamentDate || '';
+    const end = t.tournamentEndDate || '';
+    if (start && end && start !== end) return `${start} to ${end}`;
+    return start || end || 'Date not set';
+  }
+
+  tournamentTime(t:Tournament): string {
+    const start = this.formatTime(t.tournamentStartTime || '');
+    const end = this.formatTime(t.tournamentEndTime || '');
+    if (start && end) return `${start} - ${end}`;
+    return start || end || '';
+  }
+
+  modelSchedule(): string {
+    const start = this.model.tournamentDate || '';
+    const end = this.model.tournamentEndDate || '';
+    if (this.multiFormatSelected() && start && end && start !== end) return `${start} to ${end}`;
+    return start || end || 'Date not set';
+  }
+
+  modelTime(): string {
+    const start = this.formatTime(this.model.tournamentStartTime || '');
+    const end = this.formatTime(this.model.tournamentEndTime || '');
+    if (start && end) return `${start} - ${end}`;
+    return start || end || '';
+  }
+
+  formatTime(value: string): string {
+    if (!value) return '';
+    const parts = value.split(':');
+    const hour = Number(parts[0] || 0);
+    const minute = parts[1] || '00';
+    if (Number.isNaN(hour)) return value;
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const h12 = hour % 12 || 12;
+    return `${h12}:${minute} ${suffix}`;
+  }
+
+  viewRegisteredPlayers(t:Tournament){
+    this.selectedPlayersTournament = t;
+    if(!t.id){ this.selectedTournamentPlayers = []; return; }
+    this.api.registrations(t.id).subscribe({
+      next: players => this.selectedTournamentPlayers = players || [],
+      error: err => alert(this.displayError ? this.displayError(err) : 'Unable to load registered players')
+    });
+  }
   editTournament(t:Tournament){
     this.model = JSON.parse(JSON.stringify(t));
     this.model.discountOptions = this.mergeDiscountOptions((this.model.discountOptions as any) || []) as any;

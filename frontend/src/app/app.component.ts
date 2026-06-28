@@ -9,14 +9,18 @@ import { AdminAccessService } from './services/admin-access.service';
   imports: [RouterOutlet, RouterLink, NgIf],
   template: `
     <header class="topbar">
-      <div class="brand">
-        <div class="logo-text">CACA 3.0™</div>
-        <div><h1>CACA 3.0™</h1><p>Tournament Management System</p></div>
+      <div class="brand single-brand">
+        <div class="logo-box">
+          <b>CACA 3.0™</b>
+          <span>Tournament Management System</span>
+          <small>Let’s Play Together</small>
+        </div>
       </div>
       <nav>
         <a routerLink="/">Dashboard</a>
         <a routerLink="/registrations">Register For</a>
         <a routerLink="/player-score">Player Score</a>
+        <a routerLink="/brackets">Brackets</a>
         <a routerLink="/standings">Standings</a>
         <ng-container *ngIf="isAdmin()">
           <a routerLink="/tournaments">Add Tournament</a>

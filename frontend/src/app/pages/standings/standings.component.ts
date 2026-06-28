@@ -15,11 +15,9 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
   standalone: true,
   imports: [FormsModule, NgFor, NgIf, NgTemplateOutlet],
   template: `
-<h2>{{selectedTournamentName || 'Rankings / Reports'}}</h2>
-<p *ngIf="selectedTournamentName" class="muted">Results and standings for {{selectedTournamentName}} - {{format}}</p>
-<p *ngIf="standingsRoundLabel" class="status-line"><b>{{standingsRoundLabel}}</b></p>
+<h2 *ngIf="selectedTournamentName" class="compact-page-title">{{selectedTournamentName}} • {{format}} • Round Rankings</h2>
 
-<div class="card form inline">
+<div class="card form inline compact-filter-bar">
   <select [(ngModel)]="tournamentId" (change)="onTournamentChange()">
     <option value="">Select Tournament</option>
     <option *ngFor="let t of tournaments" [value]="t.id">{{t.name}}</option>
@@ -30,7 +28,7 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
     <option>Mixed Doubles</option>
     <option>Team Event</option>
   </select>
-  <button (click)="load()" [disabled]="!tournamentId">Show Standings</button>
+  <button (click)="load()" [disabled]="!tournamentId">Show</button>
 </div>
 
 <div *ngIf="bracketGroups.length > 0" class="blue-knockout-wrapper">
@@ -45,8 +43,8 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
       </div>
 
       <div class="blue-title">
-        <h1>KNOCKOUT ROUNDS</h1>
-        <p>{{group.name}} • Tournament Bracket</p>
+        <h1>TOURNAMENT BRACKET</h1>
+        <p>Quarters → Semis → Finals</p>
       </div>
 
       <div class="cup-panel">
@@ -73,8 +71,8 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
     </div>
 
     <div class="blue-round-labels">
-      <span>Quarter Finals</span>
-      <span>Semi Finals</span>
+      <span>Quarters</span>
+      <span>Semis</span>
       <span>Finals</span>
     </div>
 
@@ -142,7 +140,7 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
   </section>
 </div>
 
-<div *ngIf="latestKnockoutResults.length > 0" class="card results-card">
+<div *ngIf="false && latestKnockoutResults.length > 0" class="card results-card">
   <h3>Knockout Results</h3>
   <p class="muted">Latest completed knockout round is shown first. Earlier completed knockout rounds are shown below it.</p>
 
@@ -169,8 +167,9 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
 <div *ngIf="standings.length === 0" class="card empty-state">No finalized SRR standings available yet for this tournament.</div>
 
 <div *ngIf="standings.length > 0" class="card standings-card">
-  <h3>{{srrStandingsTitle}}</h3>
-  <table>
+  
+  <p class="warning" *ngIf="tournamentNotConducted()">Tournament is not yet conducted. Standings will appear after at least one round is generated/scored.</p>
+<table *ngIf="!tournamentNotConducted()">
     <tr>
       <th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th>
       <th *ngIf="isSuperAdmin()">Wins Adj</th><th *ngIf="isSuperAdmin()">PD Adj</th><th *ngIf="isSuperAdmin()">Reason</th><th *ngIf="isSuperAdmin()">Save</th>
@@ -188,33 +187,52 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
       <td *ngIf="isSuperAdmin()"><button type="button" class="small" (click)="saveAdjustment(s)">Save</button></td>
     </tr>
   </table>
-  <p class="muted" *ngIf="isSuperAdmin()">Super Admin changes to Wins or Point Diff immediately affect ranking, next SRR pairings, and knockout seeding after refresh/regeneration.</p>
+  
 </div>
 
 <div *ngIf="historyGroups.length > 0" class="card history-card">
-  <h3>View Previous Rounds / Brackets</h3>
-  <p class="muted">Use these tabs to view backwards from Finals/Semis/Quarters through SRR Round #1.</p>
-  <div class="previous-tabs">
-    <button type="button" class="secondary small" *ngFor="let group of historyGroups" (click)="selectedHistoryKey = group.key" [class.active-tab]="selectedHistoryKey === group.key">
+  <h3>Round Details</h3>
+  <div class="previous-tabs separated-round-tabs">
+    <button type="button" class="secondary small" *ngFor="let group of historyGroups" (click)="selectHistoryGroup(group.key); $event.preventDefault(); $event.stopPropagation()" [class.active-tab]="selectedHistoryKey === group.key" [class.active-round-button]="selectedHistoryKey === group.key">
       {{group.label}}
     </button>
   </div>
 
   <div *ngIf="selectedHistoryGroup() as group" class="history-details">
-    <h4>{{group.label}}</h4>
-    <div class="match-grid">
-      <div class="match-card" *ngFor="let m of group.matches">
-        <b>{{roundGroupLabel(m)}} {{matchRoundLabel(m)}} - {{m.status === 'BYE' ? 'BYE' : 'Board #' + m.boardNumber}}</b>
-        <p>Rank {{m.player1Rank || '-'}}: {{m.player1Name}} <b *ngIf="m.scoreFinalized">{{m.player1Score || 0}}</b></p>
-        <ng-container *ngIf="m.status !== 'BYE'; else byeBlock">
-          <p>vs</p>
-          <p>Rank {{m.player2Rank || '-'}}: {{m.player2Name}} <b *ngIf="m.scoreFinalized">{{m.player2Score || 0}}</b></p>
-          <p *ngIf="m.scoreFinalized && winnerName(m)" class="ok">Winner: Rank {{winnerRank(m) || '-'}} {{winnerName(m)}}</p>
+    <ng-container *ngIf="isSrrHistory(group); else knockoutHistoryBlock">
+      <table>
+        <tr><th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th></tr>
+        <tr *ngFor="let s of standingsForHistory(group)">
+          <td>{{s.rank}}</td>
+          <td>{{s.playerName}}</td>
+          <td>{{s.wins}}</td>
+          <td>{{s.pointsFor}}</td>
+          <td>{{s.pointsAgainst}}</td>
+          <td>{{s.pointsDifferential}}</td>
+        </tr>
+      </table>
+    </ng-container>
+
+    <ng-template #knockoutHistoryBlock>
+      <p class="muted">{{group.label}} match results and scores.</p>
+      <table>
+        <tr><th>Match</th><th>Player / Team</th><th>Score</th><th>Result</th></tr>
+        <ng-container *ngFor="let m of group.matches">
+          <tr>
+            <td>{{roundGroupLabel(m)}} {{matchRoundLabel(m)}} - {{m.status === 'BYE' ? 'BYE' : 'Venue #' + m.boardNumber}}</td>
+            <td>{{m.player1Name}}</td>
+            <td>{{m.scoreFinalized ? (m.player1Score || 0) : '-'}}</td>
+            <td>{{winnerId(m) === m.player1Id ? 'Winner' : ''}}</td>
+          </tr>
+          <tr *ngIf="m.status !== 'BYE'">
+            <td></td>
+            <td>{{m.player2Name}}</td>
+            <td>{{m.scoreFinalized ? (m.player2Score || 0) : '-'}}</td>
+            <td>{{winnerId(m) === m.player2Id ? 'Winner' : ''}}</td>
+          </tr>
         </ng-container>
-        <ng-template #byeBlock><p class="ok">BYE points: {{m.player1Score || 0}}</p></ng-template>
-        <small>Status: {{m.scoreFinalized ? 'Finalized' : (m.status || 'Generated')}}</small>
-      </div>
-    </div>
+      </table>
+    </ng-template>
   </div>
 </div>`
 })
@@ -267,25 +285,129 @@ export class StandingsComponent implements OnInit {
       this.standingsRoundLabel = this.buildStandingsRoundLabel(this.matches);
       this.srrStandingsTitle = this.buildSrrStandingsTitle(this.matches);
       this.latestKnockoutResults = this.buildKnockoutResultGroups(this.matches);
-      this.bracketGroups = this.buildBracketGroups(this.matches);
+      this.bracketGroups = [];
       this.latestKnockoutTitle = this.buildLatestKnockoutTitle(this.matches);
       this.historyGroups = this.buildHistoryGroups(this.matches);
       this.selectedHistoryKey = this.historyGroups.length ? this.historyGroups[0].key : '';
     });
   }
 
+
+  isSrrHistory(group: HistoryGroup): boolean {
+    return (group.key || '').startsWith('SRR-');
+  }
+
+  standingsForHistory(group: HistoryGroup): Standing[] {
+    if (!this.isSrrHistory(group)) return [];
+    const round = Number((group.key || '').replace('SRR-', ''));
+    return this.calculateSrrStandingsThroughRound(round);
+  }
+
+  private calculateSrrStandingsThroughRound(round: number): Standing[] {
+    const map = new Map<string, any>();
+    const include = this.matches.filter(m =>
+      (m.roundType || 'SRR').toUpperCase() === 'SRR' &&
+      (m.roundNumber || 0) <= round &&
+      !!m.scoreFinalized
+    );
+
+    const ensure = (id: string | undefined, name: string | undefined) => {
+      const key = id || name || '';
+      if (!key) return undefined;
+      if (!map.has(key)) {
+        map.set(key, {
+          playerId: id || key,
+          playerName: name || '',
+          wins: 0,
+          pointsFor: 0,
+          pointsAgainst: 0,
+          pointsDifferential: 0,
+          rank: 0
+        });
+      }
+      return map.get(key);
+    };
+
+    include.forEach(m => {
+      const p1 = ensure(m.player1Id, m.player1Name);
+      const p2 = ensure(m.player2Id, m.player2Name);
+      const s1 = Number(m.player1Score || 0);
+      const s2 = Number(m.player2Score || 0);
+
+      if (p1) {
+        p1.pointsFor += s1;
+        p1.pointsAgainst += s2;
+        if (m.status === 'BYE' || m.winnerId === m.player1Id || s1 > s2) p1.wins += 1;
+      }
+      if (p2 && m.status !== 'BYE') {
+        p2.pointsFor += s2;
+        p2.pointsAgainst += s1;
+        if (m.winnerId === m.player2Id || s2 > s1) p2.wins += 1;
+      }
+    });
+
+    const rows = Array.from(map.values()).map(s => ({
+      ...s,
+      pointsDifferential: Number(s.pointsFor || 0) - Number(s.pointsAgainst || 0)
+    }));
+
+    rows.sort((a, b) =>
+      Number(b.wins || 0) - Number(a.wins || 0) ||
+      Number(b.pointsDifferential || 0) - Number(a.pointsDifferential || 0) ||
+      Number(b.pointsFor || 0) - Number(a.pointsFor || 0) ||
+      String(a.playerName || '').localeCompare(String(b.playerName || ''))
+    );
+
+    rows.forEach((s, index) => s.rank = index + 1);
+    return rows as Standing[];
+  }
+
+
+
+
+  currentStandingsTitle(): string {
+    const latestKo = this.latestCompletedKnockoutStage(this.matches);
+    if (latestKo === 'FINALS') return 'Finals Standings';
+    if (latestKo === 'SEMIFINALS') return 'Semifinals Standings';
+    if (latestKo === 'QUARTERS') return 'Quarterfinals Standings';
+    const latestSrr = this.latestFinalizedSrrRound(this.matches);
+    return latestSrr > 0 ? `SRR ${latestSrr} Standings` : 'Standings';
+  }
+
+  currentStandingsSubtitle(): string {
+    const latestKo = this.latestCompletedKnockoutStage(this.matches);
+    if (latestKo) return `${this.stageDisplay(latestKo)} results are included. Use the round buttons below to view Quarters, Semis, Finals, or SRR round details.`;
+    return '';
+  }
+
+  tournamentNotConducted(): boolean {
+    const hasAnyFinalizedMatch = (this.matches || []).some((m: any) => !!m.scoreFinalized);
+    const hasAnyStandingData = (this.standings || []).some((s: any) =>
+      Number(s.wins || 0) !== 0 ||
+      Number(s.pointsFor || 0) !== 0 ||
+      Number(s.pointsAgainst || 0) !== 0 ||
+      Number(s.pointsDifferential || 0) !== 0
+    );
+    return !hasAnyFinalizedMatch && !hasAnyStandingData;
+  }
+
+  selectHistoryGroup(key: string) {
+    this.selectedHistoryKey = key;
+  }
+
   selectedHistoryGroup(): HistoryGroup | undefined { return this.historyGroups.find(g => g.key === this.selectedHistoryKey); }
 
   private buildBracketGroups(matches: Match[]): BracketGroup[] {
-    const knockout = matches.filter(m => this.isKnockout(m));
-    if (!knockout.length) return [];
-    const groups = [...new Set(knockout.map(m => this.normalizedGroup(m.roundGroup)))];
-    return groups.map(name => ({
-      name,
-      quarters: this.matchesForStageAndGroup(matches, 'QUARTERS', name),
-      semis: this.matchesForStageAndGroup(matches, 'SEMIFINALS', name),
-      finals: this.matchesForStageAndGroup(matches, 'FINALS', name)
-    })).filter(g => g.quarters.length || g.semis.length || g.finals.length);
+    const quarters = this.matchesForStage(matches, 'QUARTERS');
+    const semis = this.matchesForStage(matches, 'SEMIFINALS');
+    const finals = this.matchesForStage(matches, 'FINALS');
+    if (!quarters.length && !semis.length && !finals.length) return [];
+    return [{
+      name: 'Main',
+      quarters,
+      semis,
+      finals
+    }];
   }
 
   private buildLatestKnockoutTitle(matches: Match[]): string {
@@ -296,14 +418,14 @@ export class StandingsComponent implements OnInit {
   private buildStandingsRoundLabel(matches: Match[]): string {
     const latestCompletedKo = this.latestCompletedKnockoutStage(matches);
     const latestSrr = this.latestFinalizedSrrRound(matches);
-    if (latestCompletedKo) return `${this.stageDisplay(latestCompletedKo)} results shown above. SRR standings below are after SRR Round ${latestSrr || 0}.`;
-    if (latestSrr > 0) return `Standings after SRR Round ${latestSrr}`;
+    if (latestCompletedKo) return `${this.stageDisplay(latestCompletedKo)} results shown above. SRR standings below are after SRR ${latestSrr || 0}.`;
+    if (latestSrr > 0) return `Standings after SRR ${latestSrr}`;
     return 'Standings before any finalized SRR round';
   }
 
   private buildSrrStandingsTitle(matches: Match[]): string {
     const latestSrr = this.latestFinalizedSrrRound(matches);
-    return latestSrr > 0 ? `Standings after SRR Round ${latestSrr}` : 'SRR Standings';
+    return latestSrr > 0 ? `Standings after SRR ${latestSrr}` : 'SRR Standings';
   }
 
   private buildKnockoutResultGroups(matches: Match[]): ResultGroup[] {
@@ -318,17 +440,28 @@ export class StandingsComponent implements OnInit {
 
   private buildHistoryGroups(matches: Match[]): HistoryGroup[] {
     const groups: HistoryGroup[] = [];
-    ['FINALS', 'SEMIFINALS', 'QUARTERS', 'PRE_QUARTERS'].forEach(stage => {
+
+    ['FINALS', 'SEMIFINALS', 'QUARTERS'].forEach(stage => {
       const stageMatches = this.matchesForStage(matches, stage);
-      if (stageMatches.length > 0) groups.push({ key: stage, label: this.stageDisplay(stage), matches: stageMatches });
+      if (stageMatches.length > 0) {
+        groups.push({ key: stage, label: this.stageDisplay(stage), matches: stageMatches });
+      }
     });
 
-    const srrRounds = [...new Set(matches.filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR').map(m => m.roundNumber || 0).filter(r => r > 0))].sort((a, b) => b - a);
+    const srrRounds = [...new Set(matches
+      .filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR')
+      .map(m => m.roundNumber || 0)
+      .filter(r => r > 0))]
+      .sort((a, b) => b - a);
+
     srrRounds.forEach(round => groups.push({
       key: `SRR-${round}`,
-      label: `SRR Round #${round}`,
-      matches: matches.filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR' && (m.roundNumber || 0) === round).sort((a, b) => this.boardSort(a) - this.boardSort(b))
+      label: `SRR ${round}`,
+      matches: matches
+        .filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR' && (m.roundNumber || 0) === round)
+        .sort((a, b) => this.boardSort(a) - this.boardSort(b))
     }));
+
     return groups;
   }
 
@@ -367,7 +500,7 @@ export class StandingsComponent implements OnInit {
     return rounds.length ? Math.max(...rounds) : 0;
   }
 
-  matchRoundLabel(m: Match): string { return (m.roundType || 'SRR').toUpperCase() === 'SRR' ? `SRR Round #${m.roundNumber}` : this.stageDisplay(m.roundType || ''); }
+  matchRoundLabel(m: Match): string { return (m.roundType || 'SRR').toUpperCase() === 'SRR' ? `SRR ${m.roundNumber}` : this.stageDisplay(m.roundType || ''); }
   roundGroupLabel(m: Match): string { const g = this.normalizedGroup(m.roundGroup); return g === 'Main' ? '' : `${g} -`; }
   stageDisplay(stage: string): string {
     const s = (stage || '').toUpperCase();

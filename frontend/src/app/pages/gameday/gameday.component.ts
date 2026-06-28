@@ -5,53 +5,125 @@ import { Router } from "@angular/router";
 import { ApiService } from "../../services/api.service";
 import { AdminAccessService } from '../../services/admin-access.service';
 import { Match, Registration, Tournament } from "../../models/models";
+import { AppConfigService } from "../../services/app-config.service";
 
 @Component({
   selector: "app-gameday",
   standalone: true,
   imports: [FormsModule, NgFor, NgIf],
   template: `
-    <h2>Game Day Setup</h2>
-
-<div *ngIf="selectedTournamentId && format" class="card scoring-link-card">
-  <h3>Player Mobile Scoring Link</h3>
-  <p class="muted">Share this link in WhatsApp group or email. Players will enter their registered phone number and see only their assigned venue score card.</p>
-
-  <div class="share-link-row">
-    <input readonly [value]="playerScoringLink()" />
-    <button type="button" class="primary" (click)="copyPlayerScoringLink()">Copy Link</button>
-  </div>
-
-  <div class="share-actions">
-    <a class="secondary link-button" [href]="whatsAppShareLink()" target="_blank">Share in WhatsApp</a>
-    <a class="secondary link-button" [href]="emailShareLink()">Share by Email</a>
-  </div>
-
-  <p class="ok" *ngIf="copyMessage">{{copyMessage}}</p>
-</div>
-
-
-    <div class="card form">
-      <label>Select Tournament</label>
-      <select
-        [(ngModel)]="selectedTournamentId"
-        (change)="onTournamentChange()"
-      >
+    <div class="card gameday-compact-toolbar">
+      <label>Tournament</label>
+      <select [(ngModel)]="selectedTournamentId" (change)="onTournamentChange()">
         <option value="">Select Tournament</option>
-        <option *ngFor="let t of tournaments" [value]="t.id">
-          {{ t.name }}
-        </option>
+        <option *ngFor="let t of tournaments" [value]="t.id">{{ t.name }}</option>
       </select>
 
       <label>Format</label>
-      <div class="readonly-format">{{format}}</div>
+      <span class="readonly-format compact-format">{{format}}</span>
     </div>
 
     <ng-container *ngIf="selectedTournamentId">
-      <div *ngIf="matches.length" class="card gameday-current-card">
+      <div class="card" *ngIf="selectedGameDayTab === 'KO'">
+        <h3 class="admin-only-small-title">Knockout Controls</h3>
+        <div class="ko-flow knockout-actions">
+          <button
+            type="button"
+            [disabled]="!canGenerateKnockout('QUARTERS')"
+            (click)="generateKnockout('QUARTERS')"
+          >
+            Generate Quarters
+          </button>
+          <button
+            type="button"
+            [disabled]="!canGenerateKnockout('SEMIFINALS')"
+            (click)="generateKnockout('SEMIFINALS')"
+          >
+            Generate Semis
+          </button>
+          <button
+            type="button"
+            [disabled]="!canGenerateKnockout('FINALS')"
+            (click)="generateKnockout('FINALS')"
+          >
+            Generate Finals
+          </button>
+        </div>
+        <div class="gameday-knockout-bracket" *ngIf="hasKnockoutBracket()">
+          <div class="bracket-heading-row">
+            <div>
+              <h3>Knockout Bracket</h3>
+              <p>Quarterfinals → Semifinals → Finals</p>
+            </div>
+            <button type="button" class="black-btn" (click)="goToScores()">Enter / View Scores</button>
+          </div>
+
+          <div class="bracket-board">
+            <section class="bracket-column qf-column" [class.current-round]="activeKnockoutStage()==='QUARTERS'" [class.locked-round]="!knockoutMatchesForStage('QUARTERS').length">
+              <h4>Quarterfinals <span>Venue #1 - #4</span></h4>
+              <div class="bracket-row" *ngFor="let m of knockoutMatchesForStage('QUARTERS'); let i=index">
+                <div class="round-code">QF {{i+1}}</div>
+                <div class="bracket-card" [class.active-card]="activeKnockoutStage()==='QUARTERS'">
+                  <span class="venue-pill">Venue #{{m.boardNumber || (i+1)}}</span>
+                  <div class="player-line"><b>{{m.player1Rank || '-'}}</b> {{m.player1Name}} <span>{{scoreOrDash(m.player1Score, m.scoreFinalized)}}</span></div>
+                  <div class="player-line" *ngIf="m.status !== 'BYE'"><b>{{m.player2Rank || '-'}}</b> {{m.player2Name}} <span>{{scoreOrDash(m.player2Score, m.scoreFinalized)}}</span></div>
+                  <div class="bye-line" *ngIf="m.status === 'BYE'">BYE - advances</div>
+                  <small *ngIf="m.scoreFinalized && winnerName(m)">Winner: {{winnerName(m)}}</small>
+                </div>
+              </div>
+            </section>
+
+            <section class="bracket-column sf-column" [class.current-round]="activeKnockoutStage()==='SEMIFINALS'" [class.locked-round]="!knockoutMatchesForStage('SEMIFINALS').length">
+              <h4>Semifinals <span>Venue #5 - #6</span></h4>
+              <div class="bracket-row" *ngFor="let m of knockoutMatchesForStage('SEMIFINALS'); let i=index">
+                <div class="round-code">SF {{i+1}}</div>
+                <div class="bracket-card" [class.active-card]="activeKnockoutStage()==='SEMIFINALS'">
+                  <span class="venue-pill">Venue #{{m.boardNumber || (i+5)}}</span>
+                  <div class="player-line">{{m.player1Name || ('Winner QF ' + ((i*2)+1))}} <span>{{scoreOrDash(m.player1Score, m.scoreFinalized)}}</span></div>
+                  <div class="player-line" *ngIf="m.status !== 'BYE'">{{m.player2Name || ('Winner QF ' + ((i*2)+2))}} <span>{{scoreOrDash(m.player2Score, m.scoreFinalized)}}</span></div>
+                  <small *ngIf="m.scoreFinalized && winnerName(m)">Winner: {{winnerName(m)}}</small>
+                </div>
+              </div>
+              <div class="bracket-placeholder" *ngIf="!knockoutMatchesForStage('SEMIFINALS').length">Semis open after Quarters</div>
+            </section>
+
+            <section class="bracket-column final-column" [class.current-round]="activeKnockoutStage()==='FINALS'" [class.locked-round]="!knockoutMatchesForStage('FINALS').length">
+              <h4>Finals <span>Venue #7</span></h4>
+              <div class="bracket-row" *ngFor="let m of knockoutMatchesForStage('FINALS'); let i=index">
+                <div class="round-code">F</div>
+                <div class="bracket-card final-card" [class.active-card]="activeKnockoutStage()==='FINALS'">
+                  <span class="venue-pill">Venue #{{m.boardNumber || 7}}</span>
+                  <div class="player-line">{{m.player1Name || 'Winner SF 1'}} <span>{{scoreOrDash(m.player1Score, m.scoreFinalized)}}</span></div>
+                  <div class="player-line" *ngIf="m.status !== 'BYE'">{{m.player2Name || 'Winner SF 2'}} <span>{{scoreOrDash(m.player2Score, m.scoreFinalized)}}</span></div>
+                  <div class="champion-display" *ngIf="m.scoreFinalized && winnerName(m)">
+                    <strong>🏆 Champion</strong>
+                    <b>{{winnerName(m)}}</b>
+                    <small *ngIf="runnerUpName(m)">Runner-up: {{runnerUpName(m)}}</small>
+                  </div>
+                </div>
+              </div>
+              <div class="bracket-placeholder" *ngIf="!knockoutMatchesForStage('FINALS').length">Final opens after Semis</div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+
+      <div *ngIf="matches.length" class="card gameday-round-tabs-card">
+        <button
+          type="button"
+          class="round-tab-button"
+          *ngFor="let tab of gamedayRoundTabs()"
+          [class.active-round-button]="selectedGameDayTab === tab.key"
+          (click)="selectGameDayTab(tab.key)"
+        >
+          {{tab.label}}
+        </button>
+      </div>
+      <div *ngIf="matches.length && selectedGameDayTab !== 'KO'" class="card gameday-current-card">
         <div class="section-header">
           <div>
-            <h3>Generated Matchups</h3>
+            <h3>Matchups</h3>
             <p class="muted">
               <b>{{ selectedTournament()?.name }}</b> - {{ format }}
             </p>
@@ -87,10 +159,10 @@ import { Match, Registration, Tournament } from "../../models/models";
         </div>
 
         <div class="match-grid">
-          <div class="match-card" *ngFor="let m of visibleMatchups()">
+          <div class="match-card" *ngFor="let m of selectedGameDayMatches()">
             <b
               >{{ matchRoundLabel(m) }} -
-              {{ m.status === "BYE" ? "BYE" : "Board #" + m.boardNumber }}</b
+              {{ m.status === "BYE" ? "BYE" : "Venue #" + m.boardNumber }}</b
             >
             <p>Rank {{ m.player1Rank || "-" }}: {{ m.player1Name }}</p>
             <ng-container *ngIf="m.status !== 'BYE'; else byeBlock">
@@ -100,12 +172,7 @@ import { Match, Registration, Tournament } from "../../models/models";
             <ng-template #byeBlock
               ><p class="ok">BYE - no opponent this round</p></ng-template
             >
-            <small>Status: {{ m.status }}</small>
-            <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
-              <input class="tiny-input" [(ngModel)]="m.boardNumber" placeholder="Board">
-              <button type="button" class="secondary small" (click)="saveBoard(m)">Save Board</button>
-              
-            </div>
+            <small></small>
           </div>
         </div>
       </div>
@@ -176,7 +243,7 @@ import { Match, Registration, Tournament } from "../../models/models";
       </div>
 
       <div *ngIf="!matches.length" class="card">
-        <h3>Generated Matchups</h3>
+        <h3>Matchups</h3>
         <p class="muted">
           No matchups generated yet. Confirm attendance, then generate SRR Round
           #1.
@@ -211,74 +278,7 @@ import { Match, Registration, Tournament } from "../../models/models";
         </p>
       </div>
 
-      <div class="card">
-        <h3>Knockout Rounds</h3>
-<p class="muted">After SRR is complete, knockout groups are created automatically by SRR rank: Champions, Challengers, Enthusiasts, and Aspirants. Each group has up to 8 players/teams.</p>
-<p>
-          Knockout generation opens only after all SRR rounds and scores are completed. Groups are generated automatically from final SRR standings.
-        </p>
-        <p class="muted">
-          Seed rules inside each group: Rank 1 vs 8, 2 vs 7, 3 vs 6, 4 vs 5. Missing seeds become BYEs. If total count is 4 or fewer, start with Semifinals and Finals.
-        </p>
-        <div class="ko-flow knockout-actions">
-          <button
-            type="button"
-            [disabled]="!canGenerateKnockout('QUARTERS')"
-            (click)="generateKnockout('QUARTERS')"
-          >
-            Generate Group Quarters
-          </button>
-          <button
-            type="button"
-            [disabled]="!canGenerateKnockout('SEMIFINALS')"
-            (click)="generateKnockout('SEMIFINALS')"
-          >
-            Generate Group Semifinals
-          </button>
-          <button
-            type="button"
-            [disabled]="!canGenerateKnockout('FINALS')"
-            (click)="generateKnockout('FINALS')"
-          >
-            Generate Group Finals
-          </button>
-        </div>
-        <div *ngIf="currentKnockoutMatches().length" class="score-link-row">
-          <button type="button" class="yellow-btn" (click)="goToScores()">
-            Enter / View Scores for Current Knockout Round
-          </button>
-          <span class="muted"
-            >Scores page supports SRR, Pre-Quarters, Quarters, Semifinals, and
-            Finals.</span
-          >
-        </div>
 
-        <div class="knockout-groups" *ngIf="currentKnockoutMatches().length">
-          <div class="division-section" *ngFor="let group of currentKnockoutGroups()">
-            <h4>{{ group }}</h4>
-            <div class="match-grid">
-              <div class="match-card" *ngFor="let m of currentKnockoutMatchesByGroup(group)">
-                <b>{{ stageDisplay(m.roundType) }} - {{ m.status === "BYE" ? "BYE" : "Board #" + m.boardNumber }}</b>
-                <p>Rank {{ m.player1Rank || "-" }}: {{ m.player1Name }}</p>
-                <ng-container *ngIf="m.status !== 'BYE'; else koByeBlock">
-                  <p>vs</p>
-                  <p>Rank {{ m.player2Rank || "-" }}: {{ m.player2Name }}</p>
-                </ng-container>
-                <ng-template #koByeBlock><p class="ok">BYE - advances automatically</p></ng-template>
-                <small>Status: {{ m.status }}</small>
-                <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
-                  <input class="tiny-input" [(ngModel)]="m.boardNumber" placeholder="Board">
-                  <button type="button" class="secondary small" (click)="saveBoard(m)">Save Board</button>
-                  
-                </div>
-                <div class="score-link-row">
-                  <button type="button" class="secondary small" (click)="goToScores()">Open Score Entry</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div *ngIf="matches.length" class="card">
         <button
@@ -399,14 +399,41 @@ import { Match, Registration, Tournament } from "../../models/models";
         </div>
       </div>
     </ng-container>
+
+
+<div *ngIf="selectedTournamentId && format" class="card scoring-link-card">
+  <h3>Player Scoring</h3>
+  <p class="muted">Share this link in WhatsApp group or email. Players will enter their registered phone number and see only their assigned venue score card.</p>
+
+  <div class="share-link-row">
+    <input readonly [value]="playerScoringLink()" />
+    <button type="button" class="primary" (click)="copyPlayerScoringLink()">Copy Link</button>
+  </div>
+
+  <div class="share-link-row" *ngIf="isLocalTesting()">
+    <input [(ngModel)]="scoringHostOverride" placeholder="Optional LAN IP, example 192.168.1.171">
+    <button type="button" class="secondary" (click)="saveScoringHostOverride()">Use This IP</button>
+  </div>
+  <p class="warning" *ngIf="isLocalTesting()">For phone/tablet testing, use your real computer LAN IP from ipconfig. Use your PC IPv4. Current default is 192.168.1.171.</p>
+
+  <div class="share-actions">
+    <a class="secondary link-button" [href]="whatsAppShareLink()" target="_blank">Share in WhatsApp</a>
+    <a class="secondary link-button" [href]="emailShareLink()">Share by Email</a>
+  </div>
+
+  <p class="ok" *ngIf="copyMessage">{{copyMessage}}</p>
+  <p class="muted tiny-note">If WhatsApp does not make the link clickable, copy only the full http/https URL line and send it by itself.</p>
+</div>
   `,
 })
 export class GamedayComponent implements OnInit {
   
   copyMessage = '';
+  selectedGameDayTab = '';
+  scoringHostOverride = localStorage.getItem('cacaScoringHostOverride') || '192.168.1.171';
   knockoutGroups = ['Champions','Challengers','Enthusiasts','Aspirants'];
   selectedKnockoutGroup = 'Champions';
-  scoringHostOverride = localStorage.getItem('cacaScoringHostOverride') || '192.164.1.171';
+
 tournaments: Tournament[] = [];
   rawPlayers: Registration[] = [];
   players: Registration[] = [];
@@ -426,7 +453,7 @@ tournaments: Tournament[] = [];
   selectedHistoryKey = "";
 
   constructor(private api: ApiService,
-    private router: Router, private admin: AdminAccessService) {}
+    private router: Router, private admin: AdminAccessService, private config: AppConfigService) {}
 
   ngOnInit() {
     this.selectedTournamentId =
@@ -711,6 +738,54 @@ tournaments: Tournament[] = [];
     return this.srrMatches().filter((m) => m.roundNumber === last);
   }
 
+
+
+  defaultGameDayTab() {
+    const hasKo = this.knockoutMatches().length > 0;
+    if (hasKo) return 'KO';
+    const rounds = this.matches
+      .filter((m: any) => (m.roundType || 'SRR').toUpperCase() === 'SRR')
+      .map((m: any) => Number(m.roundNumber || 0))
+      .filter((r: number) => r > 0);
+    const latest = rounds.length ? Math.max(...rounds) : 0;
+    return latest ? `SRR-${latest}` : '';
+  }
+
+  gamedayRoundTabs() {
+    const srrRounds = [...new Set(this.matches
+      .filter((m: any) => (m.roundType || 'SRR').toUpperCase() === 'SRR')
+      .map((m: any) => m.roundNumber || 0)
+      .filter((r: number) => r > 0))]
+      .sort((a: number, b: number) => a - b)
+      .map((r: number) => ({ key: `SRR-${r}`, label: `SRR ${r}` }));
+
+    const hasKnockout = this.knockoutMatches().length > 0;
+    const tabs = hasKnockout ? [...srrRounds, { key: 'KO', label: 'Knockout Bracket' }] : srrRounds;
+
+    if (!this.selectedGameDayTab && tabs.length) {
+      this.selectedGameDayTab = tabs[tabs.length - 1].key;
+    }
+
+    return tabs;
+  }
+
+  selectGameDayTab(key: string) {
+    this.selectedGameDayTab = key;
+  }
+
+  selectedGameDayMatches() {
+    if (!this.selectedGameDayTab || this.selectedGameDayTab === 'KO') {
+      return this.visibleMatchups();
+    }
+    if (this.selectedGameDayTab.startsWith('SRR-')) {
+      const round = Number(this.selectedGameDayTab.replace('SRR-', ''));
+      return this.matches
+        .filter((m: any) => (m.roundType || 'SRR').toUpperCase() === 'SRR' && Number(m.roundNumber || 0) === round)
+        .sort((a: any, b: any) => Number(a.boardNumber || 999) - Number(b.boardNumber || 999));
+    }
+    return this.visibleMatchups();
+  }
+
   activeMatchRound() {
     const ko = this.currentKnockoutMatches();
     if (ko.length)
@@ -778,6 +853,46 @@ tournaments: Tournament[] = [];
 
   knockoutMatches() {
     return this.matches.filter((m) => m.roundType && m.roundType !== "SRR");
+  }
+
+
+  hasKnockoutBracket() {
+    return this.knockoutMatches().length > 0;
+  }
+
+
+  knockoutMatchesForStage(stage: string) {
+    return this.matches
+      .filter((m: any) => m.roundType === stage)
+      .sort((a: any, b: any) => Number(a.boardNumber || 999) - Number(b.boardNumber || 999));
+  }
+
+
+  activeKnockoutStage() {
+    const order = ['QUARTERS', 'SEMIFINALS', 'FINALS'];
+    const generated = order.filter(stage => this.knockoutMatchesForStage(stage).length > 0);
+    return generated.length ? generated[generated.length - 1] : '';
+  }
+
+
+  winnerName(m: Match) {
+    if (!m || !m.winnerId) return '';
+    if (m.winnerId === m.player1Id) return m.player1Name || '';
+    if (m.winnerId === m.player2Id) return m.player2Name || '';
+    return '';
+  }
+
+
+
+  runnerUpName(m: Match) {
+    if (!m || !m.winnerId) return '';
+    if (m.winnerId === m.player1Id) return m.player2Name || '';
+    if (m.winnerId === m.player2Id) return m.player1Name || '';
+    return '';
+  }
+
+  scoreOrDash(score: any, finalized: any) {
+    return finalized ? (score ?? 0) : '-';
   }
 
   currentKnockoutMatches() {
@@ -943,6 +1058,20 @@ tournaments: Tournament[] = [];
     });
   }
 
+
+  normalizeRegistrationForDisplay(r:any): any {
+    const playerName = String(r?.playerName || '').trim();
+    const email = String(r?.email || '').trim();
+    const phone = String(r?.phone || '').trim();
+    const badName = playerName === '#' || /^\d+$/.test(playerName);
+    const emailLooksLikeName = !!email && !email.includes('@') && /[A-Za-z]/.test(email);
+    const phoneLooksLikeFormat = ['Singles','Doubles','Mixed Doubles','Team Event'].includes(phone);
+    if (badName && emailLooksLikeName) {
+      return {...r, playerName: email, email: '', format: phoneLooksLikeFormat ? phone : r.format, phone: phoneLooksLikeFormat ? '' : phone};
+    }
+    return r;
+  }
+
   validateSelectedTournament() {
     if (this.selectedTournamentId && !this.tournaments.some(t => t.id === this.selectedTournamentId)) {
       this.selectedTournamentId = '';
@@ -951,15 +1080,21 @@ tournaments: Tournament[] = [];
 
   playerScoringLink(): string {
     if (!this.selectedTournamentId || !this.format) return '';
-    const protocol = window.location.protocol || 'http:';
-    const currentHost = window.location.hostname;
-    const isLocalOrLan = currentHost === 'localhost' || currentHost === '127.0.0.1' ||
-      /^192\.168\./.test(currentHost) || /^10\./.test(currentHost) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(currentHost);
-    const host = isLocalOrLan && this.scoringHostOverride && this.scoringHostOverride.trim()
-      ? this.scoringHostOverride.trim()
-      : currentHost;
-    const portPart = window.location.port && isLocalOrLan ? `:${window.location.port}` : '';
-    return `${protocol}//${host}${portPart}/player-score?tournamentId=${encodeURIComponent(this.selectedTournamentId)}&format=${encodeURIComponent(this.format)}`;
+    const base = this.config.publicFrontendBaseUrl();
+    return `${base}/player-score?tournamentId=${encodeURIComponent(this.selectedTournamentId)}&format=${encodeURIComponent(this.format)}`;
+  }
+
+  isLocalTesting(): boolean {
+    return this.config.isLocalTesting();
+  }
+
+
+  saveScoringHostOverride() {
+    const value = (this.scoringHostOverride || '').trim();
+    if (value) localStorage.setItem('cacaScoringHostOverride', value);
+    else localStorage.removeItem('cacaScoringHostOverride');
+    this.copyMessage = 'Scoring link IP updated.';
+    setTimeout(() => this.copyMessage = '', 2500);
   }
 
   copyPlayerScoringLink() {
@@ -974,8 +1109,13 @@ tournaments: Tournament[] = [];
   }
 
   whatsAppShareLink(): string {
-    const message = `CACA Tournament scoring link: ${this.playerScoringLink()}%0AEnter your registered phone number to update your assigned board score.`;
-    return `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const link = this.playerScoringLink();
+    const message = `CACA Tournament Player Scoring Link
+
+${link}
+
+Tap the link, enter your registered phone number, and submit your venue score.`;
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
   }
 
   emailShareLink(): string {

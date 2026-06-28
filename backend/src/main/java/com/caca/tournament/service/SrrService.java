@@ -164,31 +164,21 @@ public class SrrService {
                 throw new IllegalStateException("Quarters are not needed for " + standings.size() + " players/teams. Generate Semifinals instead.");
             }
 
-            Map<String, List<Participant>> divisions = divisionParticipants(standings);
-            int board = 1;
-            for (Map.Entry<String, List<Participant>> entry : divisions.entrySet()) {
-                List<Participant> participants = entry.getValue();
-                if (participants.size() >= 2) {
-                    List<Match> groupMatches = createSeededMatchesWithByes(tournamentId, format, "QUARTERS", entry.getKey(), participants, board);
-                    result.addAll(groupMatches);
-                    board += groupMatches.size();
-                }
-            }
+            List<Participant> participants = standings.stream()
+                    .limit(8)
+                    .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), "Main"))
+                    .toList();
+            result.addAll(createSeededMatchesWithByes(tournamentId, format, "QUARTERS", "Main", participants, 1));
             return matchRepository.saveAll(result);
         }
 
         if ("SEMIFINALS".equals(stage)) {
             if (knockoutRoundCompleted(allMatches, "QUARTERS")) {
-                Map<String, List<Participant>> winnersByGroup = winnersByGroupFromPriorStage(allMatches, "QUARTERS");
-                int board = 1;
-                for (Map.Entry<String, List<Participant>> entry : winnersByGroup.entrySet()) {
-                    List<Participant> winners = entry.getValue();
-                    if (winners.size() >= 2) {
-                        List<Match> groupMatches = createSemifinalMatches(tournamentId, format, entry.getKey(), winners, board, true);
-                        result.addAll(groupMatches);
-                        board += groupMatches.size();
-                    }
+                List<Participant> winners = winnersFromPriorStagePlain(allMatches, "QUARTERS");
+                if (winners.size() < 2) {
+                    throw new IllegalStateException("No Semifinals can be generated. Check Quarter winners.");
                 }
+                result.addAll(createSemifinalMatches(tournamentId, format, "Main", winners, 1, true));
                 return matchRepository.saveAll(result);
             }
 
@@ -201,9 +191,9 @@ public class SrrService {
             }
 
             List<Participant> participants = standings.stream()
-                    .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), "Champions"))
+                    .map(s -> new Participant(s.getPlayerId(), s.getPlayerName(), s.getRank(), "Main"))
                     .toList();
-            result.addAll(createSemifinalMatches(tournamentId, format, "Champions", participants, 1, false));
+            result.addAll(createSemifinalMatches(tournamentId, format, "Main", participants, 1, false));
             return matchRepository.saveAll(result);
         }
 
@@ -212,19 +202,11 @@ public class SrrService {
                 throw new IllegalStateException("Complete Semifinals before generating Finals.");
             }
 
-            Map<String, List<Participant>> winnersByGroup = winnersByGroupFromPriorStage(allMatches, "SEMIFINALS");
-            int board = 1;
-            for (Map.Entry<String, List<Participant>> entry : winnersByGroup.entrySet()) {
-                List<Participant> winners = entry.getValue();
-                if (winners.size() >= 2) {
-                    List<Match> groupMatches = createFinalMatches(tournamentId, format, entry.getKey(), winners, board);
-                    result.addAll(groupMatches);
-                    board += groupMatches.size();
-                }
+            List<Participant> winners = winnersFromPriorStagePlain(allMatches, "SEMIFINALS");
+            if (winners.size() < 2) {
+                throw new IllegalStateException("No final match can be generated. Check Semifinals winners.");
             }
-            if (result.isEmpty()) {
-                throw new IllegalStateException("No final matches can be generated. Check Semifinals winners.");
-            }
+            result.addAll(createFinalMatches(tournamentId, format, "Main", winners, 1));
             return matchRepository.saveAll(result);
         }
 
@@ -355,6 +337,15 @@ public class SrrService {
             match.setPlayer2Rank(p2.rank());
         }
         return match;
+    }
+
+
+    private List<Participant> winnersFromPriorStagePlain(List<Match> allMatches, String priorStage) {
+        return matchesForStage(allMatches, priorStage).stream()
+                .sorted(Comparator.comparingInt(m -> parseBoardNumber(m.getBoardNumber())))
+                .map(m -> winnerParticipantWithGroup(m, "Main"))
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private Map<String, List<Participant>> winnersByGroupFromPriorStage(List<Match> allMatches, String priorStage) {
@@ -717,6 +708,39 @@ public class SrrService {
             standing.setPointsDifferentialAdjustment(pdAdj);
             standing.setAdjustmentReason(adjustment.getReason());
         }
+    }
+
+
+    private Registration normalizeCsvMappedRegistration(Registration registration) {
+        if (registration == null) return null;
+
+        String playerName = safe(registration.getPlayerName());
+        String email = safe(registration.getEmail());
+        String phone = safe(registration.getPhone());
+
+        boolean badName = playerName.equals("#") || playerName.matches("\\d+");
+        boolean emailLooksLikeName = !email.contains("@") && email.matches(".*[A-Za-z].*");
+        boolean phoneLooksLikeFormat = isKnownFormat(phone);
+
+        if (badName && emailLooksLikeName) {
+            registration.setPlayerName(email);
+            registration.setEmail("");
+            if (phoneLooksLikeFormat) {
+                registration.setFormat(phone);
+                registration.setPhone("");
+            }
+        }
+
+        return registration;
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean isKnownFormat(String value) {
+        String v = safe(value).toLowerCase();
+        return v.equals("singles") || v.equals("doubles") || v.equals("mixed doubles") || v.equals("team event");
     }
 
     private List<Registration> uniquePlayingUnits(List<Registration> registrations, String format) {

@@ -46,15 +46,17 @@ public class PlayerScoreService {
                 .toList();
 
         if (accessible.isEmpty()) {
-            return PlayerScoreLookupResponse.notFound("No score card found for this phone number.");
+            return PlayerScoreLookupResponse.notFound("No score card found for this phone number. Please confirm the phone number used during registration.");
         }
 
         Match current = accessible.stream()
                 .filter(m -> !Boolean.TRUE.equals(m.getScoreFinalized()))
                 .max(Comparator.comparingInt(this::roundSortValue).thenComparing(m -> safeBoardNumber(m.getBoardNumber())))
-                .orElseGet(() -> accessible.stream()
-                        .max(Comparator.comparingInt(this::roundSortValue).thenComparing(m -> safeBoardNumber(m.getBoardNumber())))
-                        .orElse(accessible.get(accessible.size() - 1)));
+                .orElse(null);
+
+        if (current == null) {
+            return PlayerScoreLookupResponse.notFound("Your current score card is finalized. Waiting for next round to be generated.");
+        }
 
         ensureBoardArrays(current);
         accessible.forEach(this::ensureBoardArrays);
@@ -180,14 +182,18 @@ public class PlayerScoreService {
 
         // Knockout matches may be generated from standings without phone lists.
         // Fallback to attended tournament registrations by displayed team name.
-        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrue(m.getTournamentId(), m.getFormat());
+        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrue(m.getTournamentId(), m.getFormat())
+                .stream()
+                .map(this::normalizeCsvMappedRegistration)
+                .toList();
+
         return registrations.stream()
                 .filter(r -> displayName(r).equalsIgnoreCase(nullSafe(m.getPlayer1Name()))
                         || displayName(r).equalsIgnoreCase(nullSafe(m.getPlayer2Name())))
                 .map(Registration::getPhone)
                 .filter(Objects::nonNull)
                 .map(this::normalizePhone)
-                .anyMatch(normalizedPhone::equals);
+                .anyMatch(p -> samePhone(p, normalizedPhone));
     }
 
     private boolean containsPhone(List<String> values, String normalizedPhone) {
@@ -195,7 +201,26 @@ public class PlayerScoreService {
         return values.stream()
                 .filter(Objects::nonNull)
                 .map(this::normalizePhone)
-                .anyMatch(normalizedPhone::equals);
+                .anyMatch(p -> samePhone(p, normalizedPhone));
+    }
+
+    private boolean samePhone(String stored, String entered) {
+        String s = normalizePhone(stored);
+        String e = normalizePhone(entered);
+        if (s.isBlank() || e.isBlank()) return false;
+        if (s.equals(e)) return true;
+        if (last10(s).equals(last10(e))) return true;
+        return last7(s).equals(last7(e));
+    }
+
+    private String last7(String value) {
+        String digits = normalizePhone(value);
+        return digits.length() <= 7 ? digits : digits.substring(digits.length() - 7);
+    }
+
+    private String last10(String value) {
+        String digits = normalizePhone(value);
+        return digits.length() <= 10 ? digits : digits.substring(digits.length() - 10);
     }
 
     private String displayName(Registration registration) {
@@ -214,6 +239,30 @@ public class PlayerScoreService {
     private String normalizePhone(String value) {
         if (value == null) return "";
         return value.replaceAll("[^0-9]", "");
+    }
+
+    private Registration normalizeCsvMappedRegistration(Registration registration) {
+        if (registration == null) return null;
+        String playerName = nullSafe(registration.getPlayerName());
+        String email = nullSafe(registration.getEmail());
+        String phone = nullSafe(registration.getPhone());
+        boolean badName = playerName.equals("#") || playerName.matches("\\d+");
+        boolean emailLooksLikeName = !email.contains("@") && email.matches(".*[A-Za-z].*");
+        boolean phoneLooksLikeFormat = isKnownFormat(phone);
+        if (badName && emailLooksLikeName) {
+            registration.setPlayerName(email);
+            registration.setEmail("");
+            if (phoneLooksLikeFormat) {
+                registration.setFormat(phone);
+                registration.setPhone("");
+            }
+        }
+        return registration;
+    }
+
+    private boolean isKnownFormat(String value) {
+        String v = nullSafe(value).toLowerCase();
+        return v.equals("singles") || v.equals("doubles") || v.equals("mixed doubles") || v.equals("team event");
     }
 
     private void ensureBoardArrays(Match match) {

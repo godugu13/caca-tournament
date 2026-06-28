@@ -21,16 +21,17 @@ public class RegistrationController {
 
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {
-        return repository.findByTournamentId(tournamentId);
+        return normalizeList(repository.findByTournamentId(tournamentId));
     }
 
     @GetMapping("/tournament/{tournamentId}/{format}")
     public List<Registration> byTournamentAndFormat(@PathVariable String tournamentId, @PathVariable String format) {
-        return repository.findByTournamentIdAndFormat(tournamentId, format);
+        return normalizeList(repository.findByTournamentIdAndFormat(tournamentId, format));
     }
 
     @PostMapping
     public Registration register(@Valid @RequestBody Registration registration) {
+        registration = normalizeCsvMappedRegistration(registration);
         memberService.applyMemberToRegistration(registration);
         return repository.save(registration);
     }
@@ -69,6 +70,51 @@ public class RegistrationController {
                 .filter(id -> id != null && !id.isBlank())
                 .forEach(repository::deleteById);
         return ResponseEntity.ok(Map.of("deleted", registrationIds.size()));
+    }
+
+
+    private List<Registration> normalizeList(List<Registration> registrations) {
+        return registrations.stream().map(this::normalizeCsvMappedRegistration).toList();
+    }
+
+    private Registration normalizeCsvMappedRegistration(Registration registration) {
+        if (registration == null) return null;
+
+        String playerName = safe(registration.getPlayerName());
+        String email = safe(registration.getEmail());
+        String phone = safe(registration.getPhone());
+        String format = safe(registration.getFormat());
+
+        // Defensive repair for old bad CSV uploads:
+        // #, Player, Format, Email, Phone, Payment
+        // accidentally mapped as playerName=#, email=Player, phone=Format.
+        boolean badName = playerName.equals("#") || playerName.matches("\\d+");
+        boolean emailLooksLikeName = !email.contains("@") && email.matches(".*[A-Za-z].*");
+        boolean phoneLooksLikeFormat = isKnownFormat(phone);
+
+        if (badName && emailLooksLikeName) {
+            registration.setPlayerName(email);
+            registration.setEmail("");
+            if (phoneLooksLikeFormat) {
+                registration.setFormat(phone);
+                registration.setPhone("");
+            }
+        }
+
+        if (registration.getFormat() == null || registration.getFormat().isBlank()) {
+            registration.setFormat(format.isBlank() ? "Singles" : format);
+        }
+
+        return registration;
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean isKnownFormat(String value) {
+        String v = safe(value).toLowerCase();
+        return v.equals("singles") || v.equals("doubles") || v.equals("mixed doubles") || v.equals("team event");
     }
 
 

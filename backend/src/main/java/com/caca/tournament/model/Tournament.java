@@ -22,6 +22,8 @@ public class Tournament {
     private List<String> teamPlayerNames = new ArrayList<>();
     private LocalDate tournamentDate;
     private LocalDate tournamentEndDate;
+    private String tournamentStartTime;
+    private String tournamentEndTime;
     private Double registrationFee = 0.0;
     private String venueName;
     private String address;

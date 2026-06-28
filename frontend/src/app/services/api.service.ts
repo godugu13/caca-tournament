@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
 import { HttpClient } from '@angular/common/http';
+import { AppConfigService } from './app-config.service';
 import { Observable } from 'rxjs';
 import { Match, Registration, Standing, Tournament, Member, PlayerScoreLookupResponse, DashboardTournament } from '../models/models';
 
@@ -13,9 +13,9 @@ export class ApiService {
   // Production:
   //   Set localStorage.cacaApiBaseUrl in browser if frontend/backend are on separate domains,
   //   or replace this with environment-based config in Step 29.
-  private baseUrl = environment.apiBaseUrl;
+  private baseUrl = '';
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private config: AppConfigService) { this.baseUrl = this.config.apiBaseUrl(); }
   tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments`); }
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
   dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }

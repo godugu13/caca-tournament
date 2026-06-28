@@ -14,39 +14,46 @@ import { Match, Tournament } from '../../models/models';
 <div class="player-score-page">
   <div class="mobile-score-card lookup-card" *ngIf="!match">
     <h2>Player Score Entry</h2>
-    <p class="muted">Enter your registered phone number to open your venue score card.</p>
+    <p class="muted">Enter your registered phone number to open your latest unfinished score card.</p>
 
-    <label>Tournament</label>
-    <select [(ngModel)]="tournamentId">
-      <option value="">Select Tournament</option>
-      <option *ngFor="let t of tournaments" [value]="t.id">{{t.name}}</option>
-    </select>
+    <div class="readonly-context" *ngIf="hasUrlContext()">
+      <b>{{selectedTournamentName()}}</b>
+      <span>{{format}}</span>
+    </div>
 
-    <label>Format</label>
-    <select [(ngModel)]="format">
-      <option>Singles</option>
-      <option>Doubles</option>
-      <option>Mixed Doubles</option>
-      <option>Team Event</option>
-    </select>
+    <ng-container *ngIf="!hasUrlContext()">
+      <label>Tournament</label>
+      <select [(ngModel)]="tournamentId">
+        <option value="">Select Tournament</option>
+        <option *ngFor="let t of tournaments" [value]="t.id">{{t.name}}</option>
+      </select>
+
+      <label>Format</label>
+      <select [(ngModel)]="format">
+        <option>Singles</option>
+        <option>Doubles</option>
+        <option>Mixed Doubles</option>
+        <option>Team Event</option>
+      </select>
+    </ng-container>
 
     <label>Registered Phone Number</label>
-    <input type="tel" inputmode="tel" [(ngModel)]="phone" placeholder="Example: 7035551234">
+    <input type="tel" inputmode="tel" [(ngModel)]="phone" placeholder="Example: 5715358983 or +1 571-535-8983">
 
-    <button type="button" class="primary full-width" (click)="lookup()">Open My Score Card</button>
+    <button type="button" class="primary full-width compact-main" (click)="lookup()">Open My Score Card</button>
     <p class="warning" *ngIf="message">{{message}}</p>
   </div>
 
-  <div class="mobile-score-card" *ngIf="match">
-    <div class="score-card-header">
+  <div class="mobile-score-card score-entry-card" *ngIf="match">
+    <div class="score-card-header modern">
       <div>
-        <h2>Board / Venue #{{match.boardNumber || responseVenue}}</h2>
-        <p>{{roundLabel}}</p>
+        <h2>Venue #{{match.boardNumber || responseVenue}}</h2>
+        <p>{{selectedTournamentName()}} • {{format}}</p>
       </div>
-      <span class="status-chip" [class.done]="match.scoreFinalized">{{match.scoreFinalized ? 'Finalized' : 'Open'}}</span>
+      <span class="round-pill">{{roundLabelFor(match)}}</span>
     </div>
 
-    <div class="mobile-vs">
+    <div class="mobile-vs polished-vs">
       <div class="mobile-team">
         <b>{{match.player1Name}}</b>
         <strong>{{total(1)}}</strong>
@@ -58,7 +65,7 @@ import { Match, Tournament } from '../../models/models';
       </div>
     </div>
 
-    <div class="round-tabs">
+    <div class="round-tabs compact-tabs" *ngIf="accessibleRoundTabs().length > 1">
       <button type="button"
               *ngFor="let item of accessibleRoundTabs()"
               [class.active]="match?.id === item.id"
@@ -67,43 +74,44 @@ import { Match, Tournament } from '../../models/models';
       </button>
     </div>
 
-    <p class="muted center">Only players assigned to this board can update this score card.</p>
-    <p class="audit-note center">Score updates are audited with timestamp, IP address, device/browser, and optional location if allowed.</p>
-
-    <div class="mobile-board-row" *ngFor="let b of visibleBoards()">
-      <div class="team-entry">
-        <label>{{shortName(match.player1Name)}}</label>
-        <input type="number" min="0" max="25" inputmode="numeric"
-               [disabled]="!!match.scoreFinalized"
-               [(ngModel)]="p1Scores[b-1]"
-               (ngModelChange)="scoreChanged(b, 1)">
-      </div>
-
-      <div class="board-center">
+    <div class="score-entry-grid" *ngFor="let b of visibleBoards()">
+      <label class="team-label left">{{shortName(match.player1Name)}}</label>
+      <div class="board-center compact-board">
         <span>Board</span>
         <b>#{{b}}</b>
-        <button type="button" class="small-save"
-                [disabled]="!!match.scoreFinalized || !dirty[b]"
-                (click)="saveBoard(b)">💾</button>
       </div>
+      <label class="team-label right">{{shortName(match.player2Name)}}</label>
 
-      <div class="team-entry">
-        <label>{{shortName(match.player2Name)}}</label>
-        <input type="number" min="0" max="25" inputmode="numeric"
-               [disabled]="!!match.scoreFinalized"
-               [(ngModel)]="p2Scores[b-1]"
-               (ngModelChange)="scoreChanged(b, 2)">
-      </div>
+      <input class="score-input" type="number" min="0" max="25" inputmode="numeric"
+             [disabled]="!!match.scoreFinalized"
+             [(ngModel)]="p1Scores[b-1]"
+             (ngModelChange)="scoreChanged(b, 1)">
+
+      <button type="button" class="small-save compact-save"
+              [disabled]="!!match.scoreFinalized || !dirty[b]"
+              (click)="saveBoard(b)">Save</button>
+
+      <input class="score-input" type="number" min="0" max="25" inputmode="numeric"
+             [disabled]="!!match.scoreFinalized"
+             [(ngModel)]="p2Scores[b-1]"
+             (ngModelChange)="scoreChanged(b, 2)">
     </div>
 
-    <p class="warning" *ngIf="reached25() && !match.scoreFinalized">One side reached 25 points. Please finalize when game is complete.</p>
+    <p class="warning small-note" *ngIf="reached25() && !match.scoreFinalized">One side reached 25. Please finalize when complete.</p>
 
-    <button type="button" class="yellow-btn full-width"
-            [disabled]="!!match.scoreFinalized"
-            (click)="finalize()">Finalize Score</button>
+    <div class="score-actions-row">
+      <button type="button" class="yellow-btn compact-action"
+              [disabled]="!!match.scoreFinalized"
+              (click)="finalize()">Finalize</button>
+      <button type="button" class="secondary compact-action" (click)="resetLookup()">Different Phone</button>
+    </div>
 
-    <p class="ok center" *ngIf="match.scoreFinalized">Score finalized. Contact admin for any correction.</p>
-    <button type="button" class="secondary full-width" (click)="resetLookup()">Use Different Phone</button>
+    <p class="ok center" *ngIf="match.scoreFinalized">Score finalized. Contact admin for correction.</p>
+
+    <section class="audit-footer">
+      <p>Only assigned players can update this venue score card.</p>
+      <p>Updates are audited with timestamp, IP address, device/browser, and optional location if allowed.</p>
+    </section>
   </div>
 </div>
 `
@@ -137,6 +145,21 @@ export class PlayerScoreComponent implements OnInit {
     this.api.tournaments().subscribe(t => this.tournaments = t || []);
   }
 
+
+
+  hasUrlContext(): boolean {
+    return !!this.route.snapshot.queryParamMap.get('tournamentId') && !!this.route.snapshot.queryParamMap.get('format');
+  }
+
+
+  selectedTournamentName(): string {
+    return this.tournaments.find(t => t.id === this.tournamentId)?.name || 'Tournament';
+  }
+
+  normalizePhoneInput(value: string): string {
+    return String(value || '').replace(/[^0-9]/g, '');
+  }
+
   lookup() {
     this.message = '';
     this.match = undefined;
@@ -144,7 +167,7 @@ export class PlayerScoreComponent implements OnInit {
       this.message = 'Please select tournament, format, and enter phone number.';
       return;
     }
-    this.api.playerScoreLookup(this.tournamentId, this.format, this.phone).subscribe({
+    this.api.playerScoreLookup(this.tournamentId, this.format, this.normalizePhoneInput(this.phone)).subscribe({
       next: res => {
         if (!res.found || !res.match) {
           this.message = res.message || 'No score card found.';
@@ -191,7 +214,7 @@ export class PlayerScoreComponent implements OnInit {
   saveBoard(board: number) {
     if (!this.match?.id || !this.hasScore(board)) return;
     const i = board - 1;
-    this.api.playerSaveBoard(this.match.id, board, this.numberOrNull(this.p1Scores[i]), this.numberOrNull(this.p2Scores[i]), this.phone, this.auditMeta('SAVE')).subscribe({
+    this.api.playerSaveBoard(this.match.id, board, this.numberOrNull(this.p1Scores[i]), this.numberOrNull(this.p2Scores[i]), this.normalizePhoneInput(this.phone), this.auditMeta('SAVE')).subscribe({
       next: saved => {
         this.match = saved;
         this.replaceAccessibleMatch(saved);
@@ -205,7 +228,7 @@ export class PlayerScoreComponent implements OnInit {
   finalize() {
     if (!this.match?.id) return;
     this.applyLocalScoresToMatch();
-    this.api.playerFinalizeScore(this.match, this.phone, this.auditMeta('FINALIZE')).subscribe({
+    this.api.playerFinalizeScore(this.match, this.normalizePhoneInput(this.phone), this.auditMeta('FINALIZE')).subscribe({
       next: saved => {
         this.match = saved;
         this.replaceAccessibleMatch(saved);

@@ -11,7 +11,7 @@ import { Match, Tournament } from '../../models/models';
   standalone: true,
   imports: [FormsModule, NgFor, NgIf],
   template: `
-<h2>Scores</h2>
+
 
 <div class="card form">
   <label>Tournament</label>
@@ -30,32 +30,15 @@ import { Match, Tournament } from '../../models/models';
 </div>
 
 <div *ngIf="selectedTournamentId && matches.length" class="card">
-  <h3>Current Round Scores</h3>
-  <p class="muted">Use this page for SRR rounds and knockout rounds: Pre-Quarters, Quarters, Semifinals, and Finals.</p>
+  <h3>Score Entry</h3>
+  
   <div class="round-tabs">
     <button type="button" *ngFor="let r of roundTabs()" [class.active-tab]="r.key === selectedRoundKey" (click)="selectRound(r.key)">
       {{r.label}}
     </button>
   </div>
-  <p><b>Displaying:</b> {{selectedRoundLabel()}}</p>
+  
 
-  <div class="round-delete-panel" *ngIf="isSuperAdmin() && selectedRoundKey">
-    <p class="warning">
-      Super Admin: deleting this round also deletes all future rounds/stages so matchups can be regenerated correctly.
-    </p>
-    <button type="button" class="danger" (click)="deleteSelectedRoundAndFuture()">
-      Delete {{selectedRoundLabel()}} and Future Rounds
-    </button>
-  </div>
-
-  <div class="round-regenerate-panel" *ngIf="isSuperAdmin() && lastDeletedRoundType">
-    <p class="ok">
-      {{lastDeletedRoundLabel}} and future rounds were deleted. You can regenerate from here.
-    </p>
-    <button type="button" class="yellow-btn" (click)="regenerateDeletedRound()">
-      Generate {{lastDeletedRoundLabel}} Again
-    </button>
-  </div>
 </div>
 
 <div *ngIf="selectedTournamentId && !matches.length" class="card">
@@ -66,13 +49,13 @@ import { Match, Tournament } from '../../models/models';
   <div class="score-card" *ngFor="let m of visibleMatches()" [attr.id]="matchAnchor(m)">
     <ng-container *ngIf="m.status !== 'BYE'; else byeScore">
       <div class="score-header">
-        <b>{{m.roundType || 'SRR'}} Round {{m.roundNumber}} - Venue #{{m.boardNumber}}</b>
+        <b>{{scoreRoundLabel(m)}} - Venue #{{m.boardNumber}}</b>
         <span [class.ok]="m.scoreFinalized">{{m.scoreFinalized ? 'Finalized' : 'In Progress'}}</span>
       </div>
       <div class="board-edit-row" *ngIf="isSuperAdmin() && m.id">
-        <label>Board</label>
+        <label>Venue</label>
         <input class="tiny-input" [(ngModel)]="m.boardNumber">
-        <button type="button" class="secondary small" (click)="saveMatchBoard(m)">Save Board</button>
+        <button type="button" class="secondary small" (click)="saveMatchBoard(m)">Save</button>
       </div>
 
       <div class="score-vs-layout">
@@ -117,7 +100,7 @@ import { Match, Tournament } from '../../models/models';
 
     <ng-template #byeScore>
       <div class="score-header">
-        <b>{{m.roundType || 'SRR'}} Round {{m.roundNumber}} - BYE</b>
+        <b>{{scoreRoundLabel(m)}} - BYE</b>
         <span [class.ok]="m.scoreFinalized">{{m.scoreFinalized ? 'Finalized' : 'In Progress'}}</span>
       </div>
       <div class="bye-card">
@@ -138,9 +121,29 @@ import { Match, Tournament } from '../../models/models';
 <div *ngIf="selectedTournamentId && visibleMatches().length && allCurrentRoundFinalized()" class="card next-step-card">
   <h3>Current Round Completed</h3>
   <p>All scores for {{selectedRoundLabel()}} are finalized.</p>
-  <button type="button" class="primary" (click)="goToStandings()">View Current Standings</button>
-  <button type="button" class="yellow-btn" (click)="goToGameDay()">Generate Next SRR / Knockout Round</button>
+  <button type="button" class="primary" (click)="goToStandings()">Standings</button>
+  <button type="button" class="yellow-btn" (click)="goToGameDay()">Next Round</button>
 </div>
+
+
+<div class="card admin-round-actions" *ngIf="selectedTournamentId && matches.length && isSuperAdmin()">
+  <h3>Admin Tools</h3>
+  <p class="muted">Use only when matchups or scores need correction. Deleting a round also deletes future rounds/stages so matchups can be regenerated correctly.</p>
+
+  <div class="admin-action-row" *ngIf="selectedRoundKey">
+    <button type="button" class="danger" (click)="deleteSelectedRoundAndFuture()">
+      Delete {{selectedRoundLabel()}} and Future Rounds
+    </button>
+  </div>
+
+  <div class="admin-action-row" *ngIf="lastDeletedRoundType">
+    <span class="ok">{{lastDeletedRoundLabel}} and future rounds were deleted.</span>
+    <button type="button" class="yellow-btn" (click)="regenerateDeletedRound()">
+      Generate {{lastDeletedRoundLabel}} Again
+    </button>
+  </div>
+</div>
+
 ` })
 export class ScoresComponent implements OnInit {
   tournaments: Tournament[] = [];
@@ -464,6 +467,17 @@ export class ScoresComponent implements OnInit {
     if (this.selectedTournamentId) localStorage.setItem('activeTournamentId', this.selectedTournamentId);
     if (this.format) localStorage.setItem('activeFormat', this.format);
     this.router.navigate(['/gameday']);
+  }
+
+
+  scoreRoundLabel(m: Match): string {
+    const type = (m.roundType || 'SRR').toUpperCase();
+    if (type === 'SRR') return `SRR ${m.roundNumber || ''}`;
+    if (type === 'QUARTERS') return 'Quarters';
+    if (type === 'SEMIFINALS') return 'Semis';
+    if (type === 'FINALS') return 'Finals';
+    if (type === 'PRE_QUARTERS') return 'Pre-Quarters';
+    return type;
   }
 
   matchKey(m: Match): string {

@@ -1552,3 +1552,411 @@ Fixed missing `RegistrationsComponent` methods:
 - updatePaymentByFinalFee()
 
 These are required by Step 29.13F discount dropdown, eligible names, and auto-paid behavior.
+
+
+## Step 29.13H - CSV Upload Mapping, View Players, Standings Empty State
+
+Fixed:
+- CSV upload now maps by headers instead of fixed column positions.
+- Supports exported CSV format:
+  `#, Player, Format, Email, Phone, Payment`
+- Skips header row correctly.
+- Player name, email, phone, format, and payment status now map to the right fields.
+- Tournament management list has `View Players` button.
+- Registered players list displays when clicking a tournament.
+- Standings page shows: `Tournament is not yet conducted` when no games/rounds have been played yet.
+
+
+## Step 29.13I - Bad CSV Data Normalization for Game Day
+
+Fixed:
+- Old bad CSV uploads had `playerName` as `#`/number and real player name in another field.
+- Registration APIs now normalize bad CSV-mapped registrations before returning them.
+- New registrations are normalized before save.
+- SRR/Game Day generation normalizes registrations before creating pairings.
+- Frontend Registration and Game Day screens also normalize display as a safety net.
+
+Example repaired display:
+- Old bad row: playerName=`7`, email=`Ramakrishna Pinnelli`, phone=`Singles`
+- Corrected display/generation: playerName=`Ramakrishna Pinnelli`, format=`Singles`
+
+
+## Step 29.14A - Clean Registration Rebuild + Tournament Time Fields
+
+Rebuilt `registrations.component.ts` cleanly to remove accumulated patch/syntax issues.
+
+Included features:
+- Registration form with tournament/format selection.
+- If tournament has one format, format displays read-only.
+- Email/member lookup.
+- Partner name for Doubles/Mixed Doubles.
+- Discount eligibility dropdowns with eligible names.
+- Auto-paid when final fee is 0.
+- Spots left display.
+- CSV upload with robust parser and header mapping.
+- Download registered players CSV.
+- Download standings CSV.
+- Players view with payment toggle and remove actions.
+- Defensive display repair for old bad CSV uploads.
+
+New:
+- Tournament creation/edit now captures:
+  - Tournament Start Time
+  - Tournament End Time
+- Tournament list displays date range plus start/end time.
+
+
+## Step 29.14B - Tournament Schedule Display
+
+Added:
+- Tournament Creation/Edit still captures:
+  - Tournament Date / From Date / To Date
+  - Start Time
+  - End Time
+- Registration page displays schedule read-only:
+  - Date or date range
+  - Start/end time
+  - Venue address
+- Tournament management list displays formatted schedule and time.
+- Tournament form includes a schedule preview for organizers.
+
+No date/time entry was added to player registration.
+
+
+## Step 29.14C - Player Score Link and Phone Lookup Fix
+
+Fixed:
+- Player score share link can be corrected for local/LAN testing.
+- Added optional LAN IP override on Game Day scoring link card.
+- Warning added: local network IP usually starts with 192.168, not 192.164.
+- Phone lookup now ignores formatting and country codes by matching last 10 digits.
+  Examples supported:
+  - 5715358983
+  - +1 571-535-8983
+  - +91 9959581944
+- Player Score page normalizes phone before lookup/save/finalize.
+- Backend PlayerScoreService also normalizes old bad CSV registration rows before matching.
+
+Testing note:
+- On the same computer use: http://localhost:4200/player-score?...
+- From phone/tablet use the actual IPv4 from `ipconfig`, usually `192.168.x.x`.
+
+
+## Step 29.14D - Player Score Local/Prod Link and Phone Lookup Polish
+
+Fixed/added:
+- Game Day player scoring link now uses:
+  - Local: `http://192.168.1.171:4200/player-score?...`
+  - Production: `https://caca-tournament.vercel.app/player-score?...`
+- Local IP override remains available on Game Day for future IP changes.
+- Phone lookup matches:
+  - exact digits
+  - last 10 digits
+  - last 7 digits fallback
+  - `+1`, spaces, dashes, parentheses
+- Player Score opens the latest unfinished scorecard.
+- If all current scorecards are finalized, it shows:
+  `Your current score card is finalized. Waiting for next round to be generated.`
+- Player Score page text updated for clearer phone examples.
+
+
+## Step 29.14E - Game Day Compile Fix
+
+Fixed:
+- Removed duplicate `scoringHostOverride` declaration in `gameday.component.ts`.
+- Corrected old wrong local IP `192.164.1.171` to `192.168.1.171`.
+
+
+## Step 29.14F - Player Score Public UX + WhatsApp Link
+
+Improved:
+- WhatsApp share text puts the scoring URL on its own line so phones recognize it as a clickable link.
+- Player Score page hides tournament/format dropdown when opened from URL.
+- Mobile score card redesigned:
+  - Shows `Venue #` instead of `Board / Venue`.
+  - Round shown once as compact pill near Venue.
+  - Removed duplicate SRR text.
+  - Smaller Finalize and Different Phone buttons.
+  - Audit/help text moved to small footer.
+  - Better centered VS layout.
+  - Round tabs appear only when multiple scorecards/rounds exist.
+- Score entry layout is more compact for mobile screens.
+
+
+## Step 29.14G - Player Score Runtime Fix
+
+Fixed:
+- `hasUrlContext is not a function` runtime error.
+- Forced `hasUrlContext()` and `selectedTournamentName()` into PlayerScoreComponent class.
+- Player Score lookup now shows tournament name and format as read-only title when opened from URL.
+- WhatsApp share text improved with the URL on its own line.
+- Added small note: if WhatsApp does not hyperlink, send only the full URL line by itself.
+
+
+## Step 29.15 - Stable Config + Player Score/Admin Polish
+
+Added:
+- New `AppConfigService` centralizes frontend/backend URL handling.
+- API routing:
+  - Laptop localhost: `http://localhost:8080/api`
+  - Mobile/LAN frontend: `http://<same-lan-ip>:8080/api`
+  - Default local player score link: `http://192.168.1.171:4200/player-score?...`
+  - Production API: `https://caca-tournament-backend.onrender.com/api`
+  - Production player score link: `https://caca-tournament.vercel.app/player-score?...`
+- Removed fragile direct environment/localhost assumptions from ApiService.
+- Game Day player score link uses centralized config.
+- WhatsApp share puts URL on its own line for better hyperlink detection.
+
+Player Score UI:
+- Public score card uses `Venue #`.
+- Score entry uses `Board #`, not `Game #`.
+- Tournament name + format display as read-only title when opened from URL.
+- Compact mobile score card layout from 29.14F preserved.
+
+Admin/Branding:
+- Replaced duplicated CACA title/header with one logo-style box:
+  `CACA 3.0™ / Tournament Management System / Let's play together`
+- Admin score labels changed from `Board / Venue` to `Venue` where applicable.
+
+Important local testing:
+- Start backend on laptop port 8080.
+- Start Angular with host 0.0.0.0.
+- Phone must use the laptop WiFi IP, currently `192.168.1.171`.
+
+
+## Step 29.16 - Game Day Scoring Link Placement + Standings Round Rankings
+
+Updated:
+- Moved `Player Mobile Scoring Link` section to the bottom of Game Day page.
+- Standings page now focuses on individual player/team ranking rows.
+- Bracket graphic is hidden from the main Standings view.
+- SRR Round buttons now show rankings after that selected SRR round:
+  - Rank
+  - Player / Team
+  - Wins
+  - Points For
+  - Points Against
+  - Point Differential
+- Knockout history still shows a compact results table instead of large match cards.
+
+Ranking logic on SRR round buttons:
+- Calculates from finalized SRR matches up to selected round.
+- Sorts by wins, then point differential, then points for, then name.
+
+
+## Step 29.17 - Game Day Brackets as Main Body
+
+Updated Game Day layout:
+- Removed `Game Day Setup` page label.
+- Tournament selector and format display are now compact toolbar.
+- Brackets/matchups are visually the main body of the page.
+- `Generated Matchups` renamed to `Tournament Brackets / Matchups`.
+- Match cards use `Venue #` instead of `Board #`.
+- Mobile spacing reduced so players can see more brackets/matchups on tournament day.
+
+
+## Step 29.18A - Admin Actions Bottom + Compile Fix
+
+Updated:
+- Super Admin delete/regenerate controls moved to bottom of Scores page.
+- Fixed compile issue by inserting the Admin Actions card inside the Angular template.
+- Buttons are visually separated.
+- Standings SRR round buttons have better spacing.
+- Duplicate knockout results section hidden.
+
+
+## Step 29.19 - Plain Knockout Flow + Pictorial Bracket
+
+Changed knockout flow:
+- Temporarily ignores divisions such as Champions, Challengers, Enthusiasts, Aspirants.
+- Quarters use top 8 from SRR standings only.
+- Semifinals are generated from all Quarter winners as one plain bracket.
+- Finals are generated from all Semifinal winners as one plain final match.
+- After Semifinals, only Finals are generated. No division finals.
+
+Standings/bracket:
+- Pictorial bracket view enabled again as a single flow:
+  Quarters → Semis → Finals
+- Bracket title changed to `Tournament Bracket`.
+- Group label simplified to Main/single bracket.
+
+
+## Step 29.19A - Backend Compile Fix
+
+Fixed:
+- Added missing helper method in `SrrService.java`:
+  `winnersFromPriorStagePlain(List<Match>, String)`
+- Resolves backend compile errors from Step 29.19.
+
+This keeps the Step 29.19 plain knockout flow:
+- Quarters -> Semifinals -> Finals
+- No Champions/Challengers division finals for now.
+
+
+## Step 29.20 - Tournament Day UI Cleanup
+
+Cosmetic cleanup only:
+- Removed noisy `Status: SCHEDULED` style text from match cards.
+- Removed visible `Save Board` button/label from generated matchups.
+- Shortened labels:
+  - `Tournament Brackets / Matchups` -> `Matchups`
+  - `Player Mobile Scoring Link` -> `Player Scoring`
+  - `Super Admin Round Actions` -> `Admin Tools`
+- Standings page cleanup:
+  - Removed `Results and standings for ...`
+  - Removed `Standings after SRR Round X`
+  - Simplified title to `Tournament Name • Format`
+  - SRR buttons now appear as compact `SRR 1`, `SRR 2`, etc.
+- Score page cleanup:
+  - Removed redundant page title/description
+  - Shortened buttons to `Standings` and `Next Round`
+  - Round display simplified to `SRR 1`, `Quarters`, `Semis`, `Finals`.
+
+No backend logic changed.
+
+
+## Step 29.21 - Standings Round Button Cleanup
+
+Fixed/updated:
+- SRR round buttons now call `selectHistoryGroup()` instead of inline assignment.
+- Active SRR button is clearly highlighted blue.
+- Removed redundant `SRR 4` / selected round label above the table.
+- Combined page title into one compact line:
+  `Tournament Name • Format • Round Rankings`
+- Removed empty spacer/blank sections where possible.
+- Round Rankings buttons now focus on SRR ranking tables only.
+- Main data/table is closer to the top of the screen.
+
+
+## Step 29.21A - Standings Runtime Fix
+
+Fixed:
+- Added missing `tournamentNotConducted()` method in `StandingsComponent`.
+- This resolves console error:
+  `TypeError: t.tournamentNotConducted is not a function`
+- SRR round buttons now work because Angular runtime error is removed.
+- Button click now explicitly prevents accidental form/page event interference.
+
+
+## Step 29.23 - Game Day Black/Yellow Pictorial Bracket
+
+Updated:
+- Game Day knockout section now uses a pictorial bracket:
+  - Quarterfinals: Venue #1 - #4
+  - Semifinals: Venue #5 - #6
+  - Finals: Venue #7
+- All Quarterfinals are treated as one active stretch.
+- After QF completes, Semis become active.
+- After Semis complete, Finals become active.
+- Current/generated round cards are highlighted in yellow/black.
+- Future/non-generated rounds are muted/gray.
+- Reduced blue-heavy styling; added black/yellow tournament-day styling.
+
+
+## Step 29.23A - Game Day Template Compile Fix
+
+Fixed:
+- Added missing closing `</div>` for the Knockout Rounds card in `gameday.component.ts`.
+- Resolves Angular template error:
+  `NG5002: Unexpected closing tag "ng-container"`
+
+
+## Step 29.23B - Game Day Runtime Fix
+
+Fixed:
+- Added missing Game Day helper methods into `GamedayComponent` class:
+  - `hasKnockoutBracket()`
+  - `knockoutMatchesForStage(stage)`
+  - `activeKnockoutStage()`
+  - `winnerName(match)`
+  - `scoreOrDash(score, finalized)`
+- Resolves runtime error:
+  `TypeError: hasKnockoutBracket is not a function`
+
+
+## Step 29.23C - Tournament Day Final UI Polish
+
+UI-only changes:
+- Moved Knockout Rounds / Bracket section to the top under the header/tournament selector.
+- Times New Roman applied to:
+  - CACA 3.0™ logo
+  - Major titles
+  - Knockout Bracket title
+  - Quarterfinals/Semifinals/Finals headers
+- Improved black/yellow tournament-day theme.
+- Active knockout round is highlighted strongly.
+- Future rounds are muted/gray.
+- Champion display improved:
+  - Champion
+  - Winner name
+  - Runner-up name
+- Connector lines made darker/thicker.
+- Bracket cards have better spacing, shadow, and readability.
+
+No backend/tournament logic changed.
+
+
+## Step 29.23D - Knockout Text Cleanup
+
+UI-only change:
+- Removed/muted instructional text from the Game Day Knockout Controls card:
+  - `After SRR is complete...`
+  - `Knockout generation opens only...`
+  - `Seed rules...`
+- Replaced `Knockout Rounds` label with smaller `Knockout Controls`.
+- Keeps the pictorial bracket as the main visible content.
+
+
+## Step 29.24 - Game Day SRR/Knockout Tabs
+
+Added:
+- Game Day page now has tabs for:
+  - SRR 1
+  - SRR 2
+  - SRR 3
+  - ...
+  - Knockout Bracket
+- Clicking an SRR tab shows that SRR round's matchups.
+- Clicking Knockout Bracket shows the Quarters → Semis → Finals pictorial bracket.
+- Active tab is highlighted black/yellow.
+- Default tab:
+  - Shows Knockout Bracket if knockout rounds exist.
+  - Otherwise shows latest generated SRR round.
+
+No backend logic changed.
+
+
+## Step 29.25 - Public Brackets Header Tab
+
+Added:
+- New public/non-admin header tab: `Brackets`
+- New route:
+  - `/brackets`
+  - `/brackets/:tournamentId/:format`
+- Public Brackets page shows:
+  - Tournament/format selector
+  - SRR 1, SRR 2, SRR 3... tabs
+  - Knockout Bracket tab
+  - SRR matchups with scores/winners
+  - Pictorial Quarters -> Semis -> Finals bracket
+- No admin actions are shown on public Brackets page.
+- `Brackets` tab appears before `Standings` in the header.
+
+No backend logic changed.
+
+
+## Step 29.26 - Standings Quarters/Semis/Finals Tabs
+
+Updated Standings page:
+- Main/top standings table now clearly labels what it represents:
+  - Finals Standings
+  - Semifinals Standings
+  - Quarterfinals Standings
+  - SRR X Standings
+- Round Details now includes tabs/buttons for:
+  - Finals
+  - Semifinals
+  - Quarters
+  - SRR rounds
+- Quarters/Semis/Finals tabs show match results and scores.
+- This makes it clear when the top table is Finals standings and still lets users review Quarters/Semis.

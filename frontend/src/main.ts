@@ -9,6 +9,7 @@ import { RegistrationsComponent } from './app/pages/registrations/registrations.
 import { GamedayComponent } from './app/pages/gameday/gameday.component';
 import { ScoresComponent } from './app/pages/scores/scores.component';
 import { StandingsComponent } from './app/pages/standings/standings.component';
+import { BracketsComponent } from './app/pages/brackets/brackets.component';
 import { AdminLoginComponent } from './app/pages/admin-login/admin-login.component';
 import { AuditHistoryComponent } from './app/pages/audit-history/audit-history.component';
 import { DeploymentSettingsComponent } from './app/pages/deployment-settings/deployment-settings.component';
@@ -30,6 +31,8 @@ const routes: Routes = [
   { path: 'admin-login', component: AdminLoginComponent },
   { path: 'audit-history', component: AuditHistoryComponent, canActivate: [adminGuard] },
   { path: 'deployment-settings', component: DeploymentSettingsComponent, canActivate: [adminGuard] },
+  { path: 'brackets', component: BracketsComponent },
+  { path: 'brackets/:tournamentId/:format', component: BracketsComponent },
   { path: 'standings', component: StandingsComponent },
   { path: 'standings/:tournamentId/:format', component: StandingsComponent }
 ];

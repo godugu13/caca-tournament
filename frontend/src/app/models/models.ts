@@ -17,6 +17,8 @@ export interface Tournament {
   description?: string;
   tournamentDate?: string;
   tournamentEndDate?: string;
+  tournamentStartTime?: string;
+  tournamentEndTime?: string;
   registrationFee?: number;
   venueName?: string;
   address?: string;

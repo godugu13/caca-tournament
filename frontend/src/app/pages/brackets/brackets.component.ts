@@ -164,9 +164,10 @@ export class BracketsComponent implements OnInit {
       .sort((a:number, b:number) => a - b)
       .map((r:number) => ({key: `SRR-${r}`, label: `SRR ${r}`}));
 
+    const latestFirst = [...srrTabs].reverse();
     return this.hasKnockoutBracket()
-      ? [...srrTabs, {key: 'KO', label: 'Knockout Bracket'}]
-      : srrTabs;
+      ? [{key: 'KO', label: 'Knockout Bracket'}, ...latestFirst]
+      : latestFirst;
   }
 
   defaultTab() {

@@ -24,6 +24,18 @@ import { AppConfigService } from "../../services/app-config.service";
     </div>
 
     <ng-container *ngIf="selectedTournamentId">
+
+      <div *ngIf="matches.length" class="card gameday-round-tabs-card">
+        <button
+          type="button"
+          class="round-tab-button"
+          *ngFor="let tab of gamedayRoundTabs()"
+          [class.active-round-button]="selectedGameDayTab === tab.key"
+          (click)="selectGameDayTab(tab.key)"
+        >
+          {{tab.label}}
+        </button>
+      </div>
       <div class="card" *ngIf="selectedGameDayTab === 'KO'">
         <h3 class="admin-only-small-title">Knockout Controls</h3>
         <div class="ko-flow knockout-actions">
@@ -108,18 +120,6 @@ import { AppConfigService } from "../../services/app-config.service";
         </div>
       </div>
 
-
-      <div *ngIf="matches.length" class="card gameday-round-tabs-card">
-        <button
-          type="button"
-          class="round-tab-button"
-          *ngFor="let tab of gamedayRoundTabs()"
-          [class.active-round-button]="selectedGameDayTab === tab.key"
-          (click)="selectGameDayTab(tab.key)"
-        >
-          {{tab.label}}
-        </button>
-      </div>
       <div *ngIf="matches.length && selectedGameDayTab !== 'KO'" class="card gameday-current-card">
         <div class="section-header">
           <div>
@@ -211,7 +211,7 @@ import { AppConfigService } from "../../services/app-config.service";
               class="danger small"
               (click)="requestDanger('registration', p)"
             >
-              Remove
+              Withdraw
             </button>
           </div>
         </div>
@@ -250,32 +250,13 @@ import { AppConfigService } from "../../services/app-config.service";
         </p>
       </div>
 
-      <div class="card">
-        <h3>SRR Round Execution</h3>
-        <p *ngIf="!matches.length">
-          Only SRR Round #1 is available first. SRR Round #2 will open only
-          after all SRR #1 scores are completed.
-        </p>
-        <p *ngIf="matches.length">Current status: {{ roundStatusMessage() }}</p>
-
-        <button
-          type="button"
-          [disabled]="!canGenerateNextRound()"
-          (click)="generateRound(nextRound())"
-        >
+      <div class="card compact-round-actions" *ngIf="!hasIncompleteCurrentRound() && (!allSrrRoundsGenerated() || nextRequiredKnockoutStage())">
+        <button *ngIf="!allSrrRoundsGenerated()" type="button" [disabled]="!canGenerateNextRound()" (click)="generateRound(nextRound())">
           Generate SRR Round #{{ nextRound() }}
         </button>
-
-        <p class="warning" *ngIf="!hasAttendance()">
-          Select attendance before generating SRR Round #1.
-        </p>
-        <p class="warning" *ngIf="hasIncompleteCurrentRound()">
-          Complete all scores for SRR Round #{{ lastGeneratedRound() }} before
-          generating the next round.
-        </p>
-        <p class="warning" *ngIf="allSrrRoundsGenerated()">
-          All configured SRR rounds are already generated.
-        </p>
+        <button *ngIf="allSrrRoundsGenerated() && nextRequiredKnockoutStage()" type="button" class="yellow-btn" [disabled]="!canGenerateKnockout(nextRequiredKnockoutStage())" (click)="generateKnockout(nextRequiredKnockoutStage())">
+          Generate {{ knockoutStageLabel(nextRequiredKnockoutStage()) }}
+        </button>
       </div>
 
 
@@ -337,40 +318,22 @@ import { AppConfigService } from "../../services/app-config.service";
       </div>
 
       <div class="card danger-zone">
-        <button
-          type="button"
-          class="secondary"
-          (click)="freshStartOpen = !freshStartOpen"
-        >
-          {{
-            freshStartOpen
-              ? "Hide Admin Fresh Start Options"
-              : "Open Admin Fresh Start Options"
-          }}
+        <button type="button" class="secondary" (click)="freshStartOpen = !freshStartOpen">
+          {{ freshStartOpen ? "Hide Admin Recovery Options" : "Open Admin Recovery Options" }}
         </button>
         <div *ngIf="freshStartOpen">
-          <h3>Admin Fresh Start Options</h3>
-          <p class="warning">
-            Use these only when you want to reset tournament setup or correct
-            test data.
-          </p>
-          <button
-            type="button"
-            class="danger"
-            [disabled]="!matches.length"
-            (click)="requestDanger('rounds')"
-          >
-            Delete Generated SRR/KO Rounds for {{ format }}
-          </button>
-          <button
-            type="button"
-            class="danger"
-            (click)="requestDanger('tournament')"
-          >
-            Delete Selected Tournament
-          </button>
+          <h3>Admin Recovery Options</h3>
+          <p class="warning">Select the first incorrect round. That round and every later round will be deleted. Earlier completed rounds remain unchanged.</p>
+          <label class="delete-option" *ngFor="let option of generatedRoundDeleteOptions()">
+            <input type="checkbox" [checked]="isDeleteOptionSelected(option.key)" (change)="toggleDeleteOption(option.key, $event)">
+            <span>{{option.label}}</span>
+          </label>
+          <label class="delete-option tournament-delete-option">
+            <input type="checkbox" [checked]="isDeleteOptionSelected('TOURNAMENT')" (change)="toggleDeleteOption('TOURNAMENT', $event)">
+            <span>Delete selected tournament</span>
+          </label>
+          <button type="button" class="danger" [disabled]="!deleteSelections.length" (click)="requestDanger('selected-delete')">Delete Selected</button>
         </div>
-
         <div *ngIf="dangerAction" class="danger-confirm">
           <label>Admin PIN required for {{ dangerLabel() }}</label>
           <div class="pin-row">
@@ -451,6 +414,7 @@ tournaments: Tournament[] = [];
   rosterFile?: File;
   rosterMessage = "";
   selectedHistoryKey = "";
+  deleteSelections: string[] = [];
 
   constructor(private api: ApiService,
     private router: Router, private admin: AdminAccessService, private config: AppConfigService) {}
@@ -501,6 +465,7 @@ tournaments: Tournament[] = [];
         .subscribe((m) => {
           this.matches = m;
           this.selectedHistoryKey = "";
+          this.deleteSelections = [];
           if (m.length) {
             this.setupPanelOpen = false;
             this.freshStartOpen = false;
@@ -552,9 +517,8 @@ tournaments: Tournament[] = [];
   }
 
   dangerLabel() {
-    if (this.dangerAction === "rounds") return "deleting generated rounds";
-    if (this.dangerAction === "tournament") return "deleting tournament";
-    if (this.dangerAction === "registration") return "removing registration";
+    if (this.dangerAction === "selected-delete") return "deleting selected recovery items";
+    if (this.dangerAction === "registration") return "withdrawing player/team";
     return "admin action";
   }
 
@@ -564,15 +528,14 @@ tournaments: Tournament[] = [];
       this.dangerMessage = "Admin PIN is required";
       return;
     }
-    if (this.dangerAction === "rounds") this.deleteGeneratedRounds();
-    if (this.dangerAction === "tournament") this.deleteTournament();
+    if (this.dangerAction === "selected-delete") this.deleteSelectedRecoveryItems();
     if (this.dangerAction === "registration" && this.dangerTarget)
       this.deleteRegistrationUnit(this.dangerTarget);
   }
 
   deleteRegistrationUnit(p: Registration) {
     const label = this.displayRegistration(p);
-    if (!confirm(`Remove registered player/team: ${label}?`)) return;
+    if (!confirm(`Withdraw player/team from future rounds: ${label}? Earlier completed results remain unchanged.`)) return;
     const registrations = this.registrationUnitMembers(p).filter((r) => !!r.id);
     let remaining = registrations.length;
     if (!remaining) return;
@@ -590,6 +553,48 @@ tournaments: Tournament[] = [];
       });
     });
   }
+
+  generatedRoundDeleteOptions() {
+    const options: { key: string; label: string; order: number }[] = [];
+    const rounds = [...new Set(this.matches.filter((m:any) => (m.roundType || 'SRR').toUpperCase() === 'SRR').map((m:any) => Number(m.roundNumber || 0)).filter((r:number) => r > 0))].sort((a:number,b:number) => a-b);
+    rounds.forEach((round:number) => options.push({key:`SRR:${round}`, label:`SRR Round ${round} and future rounds`, order:round}));
+    [{type:'QUARTERS',label:'Quarterfinals and future rounds',order:100},{type:'SEMIFINALS',label:'Semifinals and Finals',order:200},{type:'FINALS',label:'Finals only',order:300}].forEach(stage => {
+      if (this.matches.some((m:any) => (m.roundType || '').toUpperCase() === stage.type)) options.push({key:`${stage.type}:1`,label:stage.label,order:stage.order});
+    });
+    return options;
+  }
+
+  toggleDeleteOption(key: string, event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked && !this.deleteSelections.includes(key)) this.deleteSelections = [...this.deleteSelections, key];
+    if (!checked) this.deleteSelections = this.deleteSelections.filter(x => x !== key);
+  }
+  isDeleteOptionSelected(key: string) { return this.deleteSelections.includes(key); }
+
+  deleteSelectedRecoveryItems() {
+    if (!this.selectedTournamentId || !this.deleteSelections.length) return;
+    if (this.deleteSelections.includes('TOURNAMENT')) { this.deleteTournament(); return; }
+    const selected = this.generatedRoundDeleteOptions().filter(o => this.deleteSelections.includes(o.key)).sort((a,b) => a.order-b.order);
+    if (!selected.length) return;
+    const earliest = selected[0];
+    const [roundType, n] = earliest.key.split(':');
+    if (!confirm(`Delete ${earliest.label}? Earlier completed rounds will remain.`)) return;
+    this.api.deleteSelectedRound(this.selectedTournamentId, this.format, roundType, Number(n || 1), this.dangerPin).subscribe({
+      next: () => { this.deleteSelections=[]; this.cancelDangerAction(); this.loadMatches(); },
+      error: err => this.dangerMessage = err?.error?.message || err?.error || 'Unable to delete selected round'
+    });
+  }
+
+  nextRequiredKnockoutStage() {
+    const hasQf=this.matches.some((m:any)=>(m.roundType||'').toUpperCase()==='QUARTERS');
+    const hasSf=this.matches.some((m:any)=>(m.roundType||'').toUpperCase()==='SEMIFINALS');
+    const hasF=this.matches.some((m:any)=>(m.roundType||'').toUpperCase()==='FINALS');
+    if (!hasQf && !hasSf && !hasF) return this.players.length > 4 ? 'QUARTERS' : 'SEMIFINALS';
+    if (hasQf && this.knockoutStageCompleted('QUARTERS') && !hasSf) return 'SEMIFINALS';
+    if (hasSf && this.knockoutStageCompleted('SEMIFINALS') && !hasF) return 'FINALS';
+    return '';
+  }
+  knockoutStageLabel(stage:string) { return stage==='QUARTERS'?'Quarterfinals':stage==='SEMIFINALS'?'Semifinals':stage==='FINALS'?'Finals':'Knockout Round'; }
 
   deleteGeneratedRounds() {
     if (!this.selectedTournamentId) return;
@@ -729,8 +734,9 @@ tournaments: Tournament[] = [];
   }
 
   nextRound() {
-    const last = this.lastGeneratedRound();
-    return last ? last + 1 : 1;
+    const configured = Number(this.selectedTournament()?.srrRounds || 0);
+    const next = this.lastGeneratedRound() + 1;
+    return configured > 0 ? Math.min(next, configured) : next;
   }
 
   currentRoundMatches() {
@@ -953,7 +959,8 @@ tournaments: Tournament[] = [];
   }
 
   allSrrRoundsGenerated() {
-    return this.lastGeneratedRound() >= this.maxSrrRounds();
+    const configured = Number(this.selectedTournament()?.srrRounds || 0);
+    return configured > 0 && this.lastGeneratedRound() >= configured;
   }
 
   canGenerateNextRound() {

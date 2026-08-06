@@ -182,7 +182,7 @@ public class PlayerScoreService {
 
         // Knockout matches may be generated from standings without phone lists.
         // Fallback to attended tournament registrations by displayed team name.
-        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrue(m.getTournamentId(), m.getFormat())
+        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrueAndRecordStatusNot(m.getTournamentId(), m.getFormat(), "D")
                 .stream()
                 .map(this::normalizeCsvMappedRegistration)
                 .toList();

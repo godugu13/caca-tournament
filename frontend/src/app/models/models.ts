@@ -15,6 +15,8 @@ export interface Tournament {
   teamName?: string;
   teamPlayerNames?: string[];
   description?: string;
+  flyerUrl?: string;
+  completedAt?: string;
   tournamentDate?: string;
   tournamentEndDate?: string;
   tournamentStartTime?: string;
@@ -52,6 +54,9 @@ export interface Registration {
   gender?: string;
   discountAmount?: number;
   finalFee?: number;
+  recordStatus?: string;
+  deletedAt?: string;
+  deletedBy?: string;
 }
 export interface Match {
   id?: string;

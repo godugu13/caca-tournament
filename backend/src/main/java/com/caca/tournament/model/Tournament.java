@@ -31,6 +31,8 @@ public class Tournament {
     private int srrRounds = 5;
     private int knockoutRounds = 1;
     private String description;
+    private String flyerUrl;
+    private String completedAt;
     private String adminPin = "1123";
     private List<String> formats = new ArrayList<>();
     private String status = "OPEN";

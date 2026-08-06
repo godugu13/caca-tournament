@@ -167,6 +167,8 @@ import { Tournament, Registration } from '../../models/models';
     <td>
       <button type="button" class="secondary small" (click)="viewRegisteredPlayers(t)">View Players</button>
       <button type="button" class="secondary small" (click)="editTournament(t)">Edit</button>
+      <button type="button" class="yellow-btn small" *ngIf="(t.status || 'OPEN') !== 'COMPLETED'" (click)="completeTournament(t)">Complete Tournament</button>
+      <button type="button" class="secondary small" *ngIf="t.status === 'COMPLETED'" (click)="reopenTournament(t)">Reopen</button>
       <button type="button" class="danger small" (click)="askDelete(t)">Delete</button>
     </td>
   </tr>
@@ -364,6 +366,9 @@ export class TournamentsComponent implements OnInit {
       error: err => alert(this.displayError ? this.displayError(err) : 'Unable to load registered players')
     });
   }
+  completeTournament(t:Tournament){ const pin=prompt('Enter tournament Admin PIN'); if(!pin||!t.id)return; this.api.finalizeTournament(t.id,pin).subscribe({next:()=>this.load(),error:e=>alert(this.displayError(e))}); }
+  reopenTournament(t:Tournament){ const pin=prompt('Enter tournament Admin PIN'); if(!pin||!t.id)return; this.api.reopenTournament(t.id,pin).subscribe({next:()=>this.load(),error:e=>alert(this.displayError(e))}); }
+
   editTournament(t:Tournament){
     this.model = JSON.parse(JSON.stringify(t));
     this.model.discountOptions = this.mergeDiscountOptions((this.model.discountOptions as any) || []) as any;

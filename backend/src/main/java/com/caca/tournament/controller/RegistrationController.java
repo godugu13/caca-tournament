@@ -2,6 +2,7 @@ package com.caca.tournament.controller;
 
 import com.caca.tournament.model.Registration;
 import com.caca.tournament.repository.RegistrationRepository;
+import com.caca.tournament.repository.TournamentRepository;
 import com.caca.tournament.service.MemberService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -18,21 +20,24 @@ import java.util.Map;
 public class RegistrationController {
     private final RegistrationRepository repository;
     private final MemberService memberService;
+    private final TournamentRepository tournamentRepository;
 
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {
-        return normalizeList(repository.findByTournamentId(tournamentId));
+        return normalizeList(repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D"));
     }
 
     @GetMapping("/tournament/{tournamentId}/{format}")
     public List<Registration> byTournamentAndFormat(@PathVariable String tournamentId, @PathVariable String format) {
-        return normalizeList(repository.findByTournamentIdAndFormat(tournamentId, format));
+        return normalizeList(repository.findByTournamentIdAndFormatAndRecordStatusNot(tournamentId, format, "D"));
     }
 
     @PostMapping
     public Registration register(@Valid @RequestBody Registration registration) {
         registration = normalizeCsvMappedRegistration(registration);
         memberService.applyMemberToRegistration(registration);
+        normalizePayment(registration);
+        registration.setRecordStatus("ACTIVE");
         return repository.save(registration);
     }
 
@@ -49,27 +54,42 @@ public class RegistrationController {
         Registration registration = repository.findById(id).orElseThrow();
         String status = request.getOrDefault("paymentStatus", "PENDING");
         registration.setPaymentStatus("PAID".equalsIgnoreCase(status) ? "PAID" : "PENDING");
+        normalizePayment(registration);
         return repository.save(registration);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
-        if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Invalid admin PIN");
-        repository.deleteById(id);
-        return ResponseEntity.ok(Map.of("deleted", true, "registrationId", id));
+        Registration registration = repository.findById(id).orElseThrow();
+        if (!isValidPin(pin, registration.getTournamentId())) return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
+        softDelete(registration, pin);
+        return ResponseEntity.ok(Map.of("deleted", true, "softDeleted", true, "registrationId", id));
     }
 
     @PostMapping("/bulk-delete")
-    public ResponseEntity<?> bulkDelete(@RequestBody List<String> registrationIds,
-                                        @RequestParam(defaultValue = "") String pin) {
-        if (pin == null || !pin.replaceAll("[^0-9]", "").matches("\\d{4}")) return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
-        if (registrationIds == null || registrationIds.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "No players selected"));
-        }
-        registrationIds.stream()
-                .filter(id -> id != null && !id.isBlank())
-                .forEach(repository::deleteById);
-        return ResponseEntity.ok(Map.of("deleted", registrationIds.size()));
+    public ResponseEntity<?> bulkDelete(@RequestBody List<String> registrationIds, @RequestParam(defaultValue = "") String pin) {
+        if (registrationIds == null || registrationIds.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "No players selected"));
+        List<Registration> registrations = repository.findAllById(registrationIds);
+        if (registrations.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "No registrations found"));
+        if (!isValidPin(pin, registrations.get(0).getTournamentId())) return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
+        registrations.forEach(r -> softDelete(r, pin));
+        return ResponseEntity.ok(Map.of("deleted", registrations.size(), "softDeleted", true));
+    }
+
+    private void softDelete(Registration registration, String pin) {
+        registration.setRecordStatus("D"); registration.setAttended(false);
+        registration.setDeletedAt(Instant.now().toString()); registration.setDeletedBy(normalizePin(pin));
+        repository.save(registration);
+    }
+    private boolean isValidPin(String pin, String tournamentId) {
+        String normalized = normalizePin(pin); if ("1123".equals(normalized)) return true;
+        return tournamentRepository.findById(tournamentId).map(t -> normalized.equals(normalizePin(t.getAdminPin()))).orElse(false);
+    }
+    private String normalizePin(String pin) { return pin == null ? "" : pin.replaceAll("[^0-9]", ""); }
+    private void normalizePayment(Registration registration) {
+        double fee = registration.getFinalFee() == null ? 0.0 : registration.getFinalFee();
+        if (fee <= 0.0) registration.setPaymentStatus("PAID");
+        else if (!"PAID".equalsIgnoreCase(registration.getPaymentStatus())) registration.setPaymentStatus("PENDING");
     }
 
 

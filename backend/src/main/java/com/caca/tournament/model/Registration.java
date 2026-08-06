@@ -34,4 +34,7 @@ public class Registration {
     private String gender;
     private Double discountAmount = 0.0;
     private Double finalFee = 0.0;
+    private String recordStatus = "ACTIVE";
+    private String deletedAt;
+    private String deletedBy;
 }

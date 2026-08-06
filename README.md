@@ -1960,3 +1960,76 @@ Updated Standings page:
   - SRR rounds
 - Quarters/Semis/Finals tabs show match results and scores.
 - This makes it clear when the top table is Finals standings and still lets users review Quarters/Semis.
+
+
+## Step 29.27 - Stability, Recovery, Registration and Dashboard
+- 60-second browser keep-alive ping endpoint.
+- Admin complete/reopen tournament.
+- Selected round deletion accepts tournament admin PIN and keeps earlier rounds.
+- Multi-format registration checkboxes create one registration per selected format.
+- Fee 0 auto-marks Paid; payment status normalization improved.
+- Dashboard separates upcoming/completed, completed opens Results, flyer URL preview supported.
+- Registration deletion is soft delete (`recordStatus=D`) with audit fields.
+- Mobile-friendly PIN modal for individual/bulk registration deletion.
+
+## Step 29.28 - Reliable registration import/export
+
+- Registration upload supports `.txt`, `.csv`, `.xls`, and `.xlsx`.
+- Excel files are parsed on the backend using Apache POI; binary Excel data is never read as text in the browser.
+- TXT supports one player per line, comma-separated, tab-separated, or pipe-separated rows.
+- Header-aware reusable columns: Player, Format, Partner, Email, Phone, Final Fee, Payment.
+- Upload accepts the tournament Admin PIN or Super Admin PIN.
+- Invalid formats, duplicates, blank rows, and row-level errors are reported instead of saving corrupted names.
+- Phone values are preserved with `DataFormatter` to avoid Excel numeric/scientific formatting issues.
+- Registered players can be downloaded as reusable XLSX:
+  - current selected format
+  - all tournament formats
+- Exported XLSX can be uploaded into a newly recreated tournament.
+
+
+## Step 29.28A - Admin-Only Registration Import/Export
+
+Updated:
+- Registration upload controls are visible only to logged-in admins.
+- Registered-player CSV/XLSX download controls are visible only to logged-in admins.
+- Import and export component methods also verify admin access before running.
+- Non-admin users continue to see normal registration and player information, but cannot upload or download roster files.
+
+
+## Step 29.28B - Completely Hide Registration Import/Export
+
+Fixed:
+- The complete Registration Import / Export area is now inside one `*ngIf="isAdmin()"` container.
+- Non-admin users will not see:
+  - Registration Import / Export title
+  - File chooser
+  - Tournament Admin PIN field
+  - Supported-file information
+  - XLSX/CSV download buttons
+  - Reuse/download instructions
+- Admin visibility uses the same active session login state as the admin header/routes.
+- Existing method-level admin protections remain in place.
+
+
+## Step 29.29 - Tournament Continuation and Recovery
+- Generate next SRR/knockout directly from Standings.
+- Round Details appears before the collapsed admin standings editor.
+- Correct knockout button replaces invalid extra SRR button after configured rounds.
+- Checkbox recovery deletes selected round and all future stages while preserving earlier rounds.
+- Regular admins manage their own tournaments; Super Admin manages all.
+- Withdrawn registrations are soft-deleted and excluded from future round generation.
+- Mobile PIN confirmation uses modal-style layout.
+
+
+## Step 29.30 - Final Production UI Cleanup
+
+Updated:
+- Game Day SRR/Knockout tabs are always placed directly below the tournament selector.
+- Tabs remain consistent and sticky at the top while viewing results.
+- Removed Round Execution heading, current-status text, and repeated completion messages.
+- Only the applicable Generate Next SRR / Generate Knockout button is shown.
+- Standings pictorial Quarters -> Semis -> Finals bracket is restored.
+- Knockout progress is represented by the pictorial bracket instead of duplicate knockout round-detail tabs.
+- Round Details now focuses on SRR rounds only.
+
+No backend tournament logic changed.

@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Map;
+import java.time.Instant;
+import java.util.Comparator;
 
 @RestController
 @RequestMapping("/api/tournaments")
@@ -39,7 +41,7 @@ public class TournamentController {
 
     @GetMapping("/dashboard")
     public List<DashboardTournament> dashboardTournaments() {
-        return repository.findAll().stream().map(tournament -> {
+        return repository.findAll().stream().sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate())).map(tournament -> {
             Optional<Match> finalWinner = matchRepository.findByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId())
                     .stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
@@ -49,7 +51,7 @@ public class TournamentController {
 
             return new DashboardTournament(
                     tournament,
-                    finalWinner.isPresent(),
+                    finalWinner.isPresent() || "COMPLETED".equalsIgnoreCase(tournament.getStatus()),
                     finalWinner.map(this::winnerName).orElse(null),
                     finalWinner.map(Match::getFormat).orElse(null)
             );
@@ -88,6 +90,9 @@ public class TournamentController {
         existing.setTeamName(request.getTeamName());
         existing.setTeamPlayerNames(request.getTeamPlayerNames());
         existing.setTournamentDate(request.getTournamentDate());
+        existing.setTournamentEndDate(request.getTournamentEndDate());
+        existing.setTournamentStartTime(request.getTournamentStartTime());
+        existing.setTournamentEndTime(request.getTournamentEndTime());
         existing.setRegistrationFee(request.getRegistrationFee() == null ? 0.0 : request.getRegistrationFee());
         existing.setVenueName(request.getVenueName());
         existing.setAddress(request.getAddress());
@@ -95,6 +100,7 @@ public class TournamentController {
         existing.setSrrRounds(request.getSrrRounds());
         existing.setKnockoutRounds(request.getKnockoutRounds());
         existing.setDescription(request.getDescription());
+        existing.setFlyerUrl(request.getFlyerUrl());
         existing.setFormats(request.getFormats());
         if (request.getAdminPin() != null && !request.getAdminPin().isBlank()) {
             String requestedPin = normalizePin(request.getAdminPin());
@@ -114,6 +120,15 @@ public class TournamentController {
         Tournament tournament = repository.findById(id).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
         tournament.setStatus("COMPLETED");
+        tournament.setCompletedAt(Instant.now().toString());
+        return ResponseEntity.ok(repository.save(tournament));
+    }
+
+    @PutMapping("/{id}/reopen")
+    public ResponseEntity<?> reopenTournament(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
+        Tournament tournament = repository.findById(id).orElseThrow();
+        if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
+        tournament.setStatus("OPEN"); tournament.setCompletedAt(null);
         return ResponseEntity.ok(repository.save(tournament));
     }
 

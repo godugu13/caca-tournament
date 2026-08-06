@@ -15,7 +15,8 @@ import { Tournament, DashboardTournament } from '../../models/models';
 <div class="dashboard-grid player-dashboard-grid">
   <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b><span>Register for Singles, Doubles, Mixed Doubles, or Team Event.</span></a>
   <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b><span>Open your assigned board score card using registered phone number.</span></a>
-  <a class="dash-card black" routerLink="/standings"><b>Standings</b><span>View current rankings, results, and knockout brackets.</span></a>
+  <a class="dash-card black" routerLink="/brackets"><b>Brackets</b><span>View live and completed matchups.</span></a>
+  <a class="dash-card ocean-light" routerLink="/standings"><b>Standings</b><span>View rankings and round results.</span></a>
 </div>
 
 <section class="card tournament-list-card">
@@ -31,12 +32,13 @@ import { Tournament, DashboardTournament } from '../../models/models';
 
   <div class="tournament-link-list" *ngIf="currentTournaments.length > 0">
     <div class="tournament-row future" *ngFor="let item of currentTournaments">
+      <img *ngIf="item.tournament.flyerUrl" class="dashboard-flyer" [src]="item.tournament.flyerUrl" alt="Tournament flyer">
       <a [routerLink]="standingsLink(item.tournament)" class="tournament-main-link">
         <div>
           <b>{{item.tournament.name}}</b>
           <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'No date added'}} • {{item.tournament.status || 'OPEN'}}</span>
         </div>
-        <em>View Standings →</em>
+        <em>Open →</em>
       </a>
     </div>
   </div>
@@ -55,12 +57,12 @@ import { Tournament, DashboardTournament } from '../../models/models';
 
   <div class="tournament-link-list" *ngIf="completedTournaments.length > 0">
     <div class="tournament-row previous" *ngFor="let item of completedTournaments">
-      <a [routerLink]="standingsLink(item.tournament)" class="tournament-main-link">
+      <a [routerLink]="bracketsLink(item.tournament)" class="tournament-main-link">
         <div>
           <b>{{item.tournament.name}}</b>
           <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'No date added'}} • Champion: {{item.championName || 'Declared'}}</span>
         </div>
-        <em>View Final Standings →</em>
+        <em>Results →</em>
       </a>
     </div>
   </div>
@@ -84,11 +86,11 @@ export class DashboardComponent implements OnInit {
 
   private splitTournaments(): void {
     this.completedTournaments = this.tournaments
-      .filter(item => item.championDeclared)
+      .filter(item => item.championDeclared || (item.tournament.status || '').toUpperCase() === 'COMPLETED')
       .sort((a, b) => this.dateValue(b.tournament) - this.dateValue(a.tournament));
 
     this.currentTournaments = this.tournaments
-      .filter(item => !item.championDeclared)
+      .filter(item => !item.championDeclared && (item.tournament.status || '').toUpperCase() !== 'COMPLETED')
       .sort((a, b) => this.dateValue(a.tournament) - this.dateValue(b.tournament));
   }
 
@@ -99,6 +101,8 @@ export class DashboardComponent implements OnInit {
   displayFormat(t: Tournament): string {
     return t.tournamentType || (t.formats && t.formats.length ? t.formats[0] : 'Singles');
   }
+
+  bracketsLink(t: Tournament): any[] { return ['/brackets', t.id || '', this.displayFormat(t)]; }
 
   standingsLink(t: Tournament): any[] {
     return ['/standings', t.id || '', this.displayFormat(t)];

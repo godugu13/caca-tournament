@@ -2419,3 +2419,80 @@ h1, h2, h3,
   background: #111827 !important;
   color: #ffd33d !important;
 }
+
+/* Step 29.27 stability/recovery */
+.dashboard-flyer{width:88px;height:110px;object-fit:cover;border-radius:8px;margin-right:10px}.flyer-preview{max-width:220px;max-height:280px;object-fit:contain;border-radius:10px;margin-top:8px}.format-checkbox-group{display:flex;gap:10px;flex-wrap:wrap}.inline-check{display:flex;gap:5px;align-items:center;border:1px solid #d7e7f4;border-radius:999px;padding:7px 11px}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}.delete-pin-modal{background:#fff;border-radius:16px;padding:20px;width:min(360px,100%);box-shadow:0 20px 50px rgba(0,0,0,.3)}.delete-pin-modal input{width:100%;font-size:24px;text-align:center;letter-spacing:8px}.modal-actions{display:flex;gap:10px;margin-top:14px}.modal-actions button{flex:1}@media(max-width:600px){.modal-actions{flex-direction:column}.dashboard-flyer{width:64px;height:82px}}
+
+/* Step 29.28 - Registration import/export */
+.registration-transfer-card {
+  display: grid;
+  gap: 10px;
+}
+.registration-transfer-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(160px, 220px);
+  gap: 12px;
+  align-items: end;
+}
+.registration-transfer-grid label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+.registration-transfer-grid input {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .registration-transfer-grid { grid-template-columns: 1fr; }
+  .registration-transfer-card .download-row { display: grid; grid-template-columns: 1fr; }
+}
+
+/* Step 29.29 - tournament continuation and recovery */
+.round-execution-card .yellow-btn,.standings-next-action-card .yellow-btn{background:#ffd33d;color:#111827;border-color:#111827}.delete-option{display:flex;gap:10px;align-items:center;padding:8px 4px}.delete-option input{width:18px;height:18px}.tournament-delete-option{margin-top:10px;padding-top:12px;border-top:1px solid #ead1d1;color:#a40020;font-weight:700}.standings-next-action-card{margin-top:12px;border:1px solid #ead27a;background:#fffdf2}.section-toggle{width:100%;text-align:left;background:#111827;color:#ffd33d;margin-bottom:10px}.summary-standings-card{margin-top:12px}@media(max-width:700px){.danger-confirm{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;flex-direction:column;justify-content:center;padding:24px}.danger-confirm .pin-row{background:#fff;border-radius:14px;padding:16px;display:grid;gap:10px}.danger-confirm>label,.danger-confirm>.error{background:#fff;padding:8px 16px;margin:0}}
+
+
+/* Step 29.30 - final production navigation and bracket cleanup */
+.gameday-round-tabs-card {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin-top: 8px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(4px);
+  border: 1px solid #d9e6ef;
+  box-shadow: 0 4px 12px rgba(17, 24, 39, .08);
+}
+
+.gameday-round-tabs-card .round-tab-button {
+  min-width: 72px;
+  margin: 0 !important;
+}
+
+.compact-round-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+
+.compact-round-actions button {
+  margin: 0;
+}
+
+.blue-knockout-wrapper {
+  margin-top: 10px;
+}
+
+@media (max-width: 700px) {
+  .gameday-round-tabs-card {
+    top: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .compact-round-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -2,7 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, NgFor, NgIf } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { ApiService } from '../../services/api.service';
+import { AdminAccessService } from '../../services/admin-access.service';
 import { Tournament, Registration } from '../../models/models';
 
 @Component({
@@ -39,13 +41,7 @@ import { Tournament, Registration } from '../../models/models';
         </select>
       </div>
 
-      <div class="field-group">
-        <label>Format <span class="required">*</span></label>
-        <select *ngIf="availableFormats.length > 1" [(ngModel)]="model.format" (change)="onFormatChange()">
-          <option *ngFor="let f of availableFormats" [value]="f">{{f}}</option>
-        </select>
-        <input *ngIf="availableFormats.length <= 1" [ngModel]="model.format" disabled>
-      </div>
+      <div class="field-group format-checkbox-group"><label>Format(s) <span class="required">*</span></label><label class="inline-check" *ngFor="let f of availableFormats"><input type="checkbox" [checked]="selectedFormats.includes(f)" (change)="toggleRegistrationFormat(f,$event)"> {{f}}</label></div>
 
       <div class="field-group email-lookup">
         <label>Email <span class="required">*</span></label>
@@ -124,21 +120,35 @@ import { Tournament, Registration } from '../../models/models';
     </div>
   </div>
 
-  <h3>Excel Upload / Download</h3>
-  <div class="card upload-card">
-    <input type="file" accept=".csv,.txt" (change)="onRosterFileSelected($event)">
+  <ng-container *ngIf="isAdmin()">
+  <h3>Registration Import / Export</h3>
+  <div class="card upload-card registration-transfer-card">
+    <div class="registration-transfer-grid">
+      <div>
+        <label>Upload registered players</label>
+        <input type="file" accept=".txt,.csv,.xls,.xlsx" (change)="onRosterFileSelected($event)" [disabled]="rosterUploadInProgress">
+      </div>
+      <div>
+        <label>Tournament Admin PIN</label>
+        <input type="password" inputmode="numeric" maxlength="4" [(ngModel)]="rosterUploadPin" placeholder="4-digit PIN">
+      </div>
+    </div>
+    <p class="muted">Supported files: TXT, CSV, XLS and XLSX. Reusable columns: Player, Format, Partner, Email, Phone, Final Fee and Payment.</p>
+    <p class="warning" *ngIf="rosterUploadInProgress">Uploading and validating registrations…</p>
     <div class="download-row">
-      <button type="button" class="secondary" (click)="downloadPlayersCsv()">Download Registered Players CSV</button>
+      <button type="button" class="secondary" (click)="downloadPlayersXlsx(false)" [disabled]="!model.tournamentId">Download Current Format XLSX</button>
+      <button type="button" class="secondary" (click)="downloadPlayersXlsx(true)" [disabled]="!model.tournamentId">Download All Formats XLSX</button>
+      <button type="button" class="secondary" (click)="downloadPlayersCsv()">Download Current View CSV</button>
       <button type="button" class="secondary" (click)="downloadStandingsCsv()">Download Standings CSV</button>
     </div>
-    <small class="muted">CSV upload columns accepted: #, Player, Format, Email, Phone, Payment, Partner.</small>
+    <small class="muted">The downloaded XLSX can be uploaded into another tournament. Select the new tournament and enter its admin PIN before uploading.</small>
   </div>
+  </ng-container>
 
   <h3>Players View</h3>
   <div class="card bulk-remove-card">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
-    <input [(ngModel)]="bulkRemovePin" placeholder="Admin PIN">
-    <button type="button" class="danger" (click)="removeSelectedPlayers()">Remove Selected Players ({{selectedCount()}})</button>
+    <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
     <small>Enter Admin PIN once, select multiple players, and remove them together.</small>
   </div>
 
@@ -181,6 +191,7 @@ import { Tournament, Registration } from '../../models/models';
       </tbody>
     </table>
   </div>
+<div class="modal-backdrop" *ngIf="deletePinModalOpen"><div class="delete-pin-modal"><h3>Admin PIN</h3><input type="password" inputmode="numeric" maxlength="4" [(ngModel)]="bulkRemovePin" placeholder="4-digit PIN"><div class="modal-actions"><button type="button" class="danger" (click)="confirmDeleteWithPin()">Confirm Delete</button><button type="button" class="secondary" (click)="deletePinModalOpen=false">Cancel</button></div><p class="warning" *ngIf="deletePinError">{{deletePinError}}</p></div></div>
 </section>
 `
 })
@@ -191,9 +202,14 @@ export class RegistrationsComponent implements OnInit {
   players: Registration[] = [];
   selectedPlayerIds: {[id: string]: boolean} = {};
   bulkRemovePin = '';
+  selectedFormats: string[] = [];
+  deletePinModalOpen = false;
+  deletePinError = '';
   memberMessage = '';
   registrationSuccessMessage = '';
   registrationErrorMessage = '';
+  rosterUploadPin = '';
+  rosterUploadInProgress = false;
 
   model: Registration = {
     tournamentId: '',
@@ -208,7 +224,14 @@ export class RegistrationsComponent implements OnInit {
     finalFee: 0
   };
 
-  constructor(private api: ApiService, private route: ActivatedRoute, private router: Router) {}
+  constructor(private api: ApiService, private route: ActivatedRoute, private router: Router,
+    private adminAccess: AdminAccessService) {}
+
+
+  isAdmin(): boolean {
+    return sessionStorage.getItem('cacaAdminUnlocked') === 'true'
+      && this.adminAccess.isAdmin();
+  }
 
   ngOnInit() {
     this.api.tournaments().subscribe(tournaments => {
@@ -254,6 +277,10 @@ export class RegistrationsComponent implements OnInit {
     return `${h12}:${minute} ${suffix}`;
   }
 
+  toggleRegistrationFormat(format:string,event:any){ const checked=!!event?.target?.checked; this.selectedFormats=checked?Array.from(new Set([...this.selectedFormats,format])):this.selectedFormats.filter(f=>f!==format); this.model.format=this.selectedFormats[0]||''; }
+  openDeletePinModal(){ if(!this.selectedCount()){alert('Please select at least one player.');return;} this.bulkRemovePin='';this.deletePinError='';this.deletePinModalOpen=true; }
+  confirmDeleteWithPin(){ if(!this.bulkRemovePin){this.deletePinError='Enter Admin PIN';return;} this.removeSelectedPlayers(); }
+
   onTournamentChange() {
     this.selectedTournament = this.tournaments.find(t => t.id === this.model.tournamentId);
     this.normalizeSelectedTournamentDiscounts();
@@ -261,6 +288,7 @@ export class RegistrationsComponent implements OnInit {
       ? this.selectedTournament.formats
       : [this.selectedTournament?.tournamentType || 'Singles'];
     this.model.format = this.availableFormats[0] || 'Singles';
+    this.selectedFormats = [this.model.format];
     this.model.discountType = '';
     this.model.discountName = '';
     this.model.gender = '';
@@ -279,7 +307,7 @@ export class RegistrationsComponent implements OnInit {
       this.players = [];
       return;
     }
-    this.api.registrationsByFormat(this.model.tournamentId, this.model.format).subscribe(players => {
+    this.api.registrations(this.model.tournamentId).subscribe(players => {
       this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p));
       this.selectedPlayerIds = {};
     });
@@ -306,9 +334,9 @@ export class RegistrationsComponent implements OnInit {
     this.registrationErrorMessage = '';
 
     if (!this.model.tournamentId) { this.registrationErrorMessage = 'Please select a tournament before registering.'; return; }
-    if (!this.model.format) { this.registrationErrorMessage = 'Please select a format before registering.'; return; }
+    if (!this.selectedFormats.length) { this.registrationErrorMessage = 'Please select at least one format.'; return; }
     if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
-    if (this.showPartnerColumn() && !this.model.partnerName) { this.registrationErrorMessage = 'Please enter Partner Name.'; return; }
+    if (this.selectedFormats.some(f => f === 'Doubles' || f === 'Mixed Doubles') && !this.model.partnerName) { this.registrationErrorMessage = 'Please enter Partner Name.'; return; }
 
     this.updatePaymentByFinalFee();
 
@@ -330,9 +358,11 @@ export class RegistrationsComponent implements OnInit {
       teamMemberNames: []
     };
 
-    this.api.register(payload).subscribe({
-      next: saved => {
-        this.registrationSuccessMessage = `${this.displayPlayerName(saved)} registered successfully.`;
+    const requests = this.selectedFormats.map(fmt => this.api.register({...payload, format: fmt, partnerName: (fmt === 'Doubles' || fmt === 'Mixed Doubles') ? this.model.partnerName : ''}));
+    forkJoin(requests).subscribe({
+      next: savedList => {
+        const saved = savedList[0];
+        this.registrationSuccessMessage = `${this.displayPlayerName(saved)} registered successfully for ${this.selectedFormats.join(', ')}.`;
         const tid = this.model.tournamentId;
         const fmt = this.model.format;
         this.model = {
@@ -418,7 +448,7 @@ export class RegistrationsComponent implements OnInit {
   }
 
   showPartnerColumn(): boolean {
-    return this.model?.format === 'Doubles' || this.model?.format === 'Mixed Doubles';
+    return this.selectedFormats.some(f => f === 'Doubles' || f === 'Mixed Doubles');
   }
 
   partnerDisplay(r:any): string {
@@ -451,78 +481,84 @@ export class RegistrationsComponent implements OnInit {
   }
 
   onRosterFileSelected(event:any) {
-    const file = event?.target?.files?.[0];
-    if (!file) return;
-    if (!this.model.tournamentId || !this.model.format) {
-      alert('Please select tournament and format before uploading players.');
-      event.target.value = '';
+    if (!this.isAdmin()) {
+      this.registrationErrorMessage = 'Admin login is required for registration import/export.';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const rows = this.parseCsv(String(reader.result || '')).filter(r => r.some(c => String(c || '').trim()));
-      if (!rows.length) return;
+    const file: File | undefined = event?.target?.files?.[0];
+    if (!file) return;
+    const input = event.target;
+    this.registrationSuccessMessage = '';
+    this.registrationErrorMessage = '';
 
-      const first = rows[0].map(c => String(c || '').trim().toLowerCase());
-      const hasHeader = first.some(h => ['#','player','full name','name','format','email','phone','payment','partner','partner name'].includes(h));
-      const header = hasHeader ? first : [];
-      const dataRows = hasHeader ? rows.slice(1) : rows;
+    if (!this.model.tournamentId) {
+      this.registrationErrorMessage = 'Please select a tournament before uploading registrations.';
+      input.value = '';
+      return;
+    }
+    if (!this.model.format) {
+      this.registrationErrorMessage = 'Please select a format before uploading registrations.';
+      input.value = '';
+      return;
+    }
+    if (!this.rosterUploadPin.trim()) {
+      this.registrationErrorMessage = 'Please enter the tournament Admin PIN before uploading.';
+      input.value = '';
+      return;
+    }
 
-      const idx = (names:string[], fallback:number) => {
-        for (const n of names) {
-          const found = header.indexOf(n.toLowerCase());
-          if (found >= 0) return found;
-        }
-        return fallback;
-      };
+    const extension = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['txt', 'csv', 'xls', 'xlsx'].includes(extension)) {
+      this.registrationErrorMessage = 'Supported files are .txt, .csv, .xls and .xlsx.';
+      input.value = '';
+      return;
+    }
 
-      const playerIdx = idx(['player','full name','name','player name'], hasHeader ? 1 : 0);
-      const formatIdx = idx(['format'], -1);
-      const emailIdx = idx(['email','e-mail'], hasHeader ? 3 : 1);
-      const phoneIdx = idx(['phone','mobile','phone number'], hasHeader ? 4 : 2);
-      const paymentIdx = idx(['payment','payment status','paid'], hasHeader ? 5 : -1);
-      const partnerIdx = idx(['partner','partner name'], hasHeader ? -1 : 3);
+    this.rosterUploadInProgress = true;
+    this.api.uploadRoster(this.model.tournamentId, this.model.format, this.rosterUploadPin.trim(), file).subscribe({
+      next: (result:any) => {
+        const uploaded = Number(result?.uploaded || 0);
+        const duplicates = Number(result?.duplicatesSkipped || 0);
+        const blanks = Number(result?.blankRowsSkipped || 0);
+        const errors: string[] = result?.errors || [];
+        const notes = [
+          duplicates ? `${duplicates} duplicate(s) skipped` : '',
+          blanks ? `${blanks} blank row(s) skipped` : '',
+          errors.length ? `${errors.length} row error(s)` : ''
+        ].filter(Boolean);
+        this.registrationSuccessMessage = `${uploaded} registration(s) imported successfully${notes.length ? `. ${notes.join(', ')}.` : '.'}`;
+        if (errors.length) this.registrationErrorMessage = errors.slice(0, 5).join(' | ');
+        this.rosterUploadInProgress = false;
+        input.value = '';
+        this.loadPlayers();
+      },
+      error: err => {
+        this.rosterUploadInProgress = false;
+        input.value = '';
+        this.registrationErrorMessage = this.displayError(err);
+      }
+    });
+  }
 
-      let completed = 0;
-      let created = 0;
-      let skipped = 0;
-
-      dataRows.forEach(row => {
-        const name = String(row[playerIdx] || '').trim();
-        const fileFormat = formatIdx >= 0 ? String(row[formatIdx] || '').trim() : '';
-        const email = String(row[emailIdx] || '').trim();
-        const phone = String(row[phoneIdx] || '').trim();
-        const paymentRaw = paymentIdx >= 0 ? String(row[paymentIdx] || '').trim().toUpperCase() : '';
-        const partner = partnerIdx >= 0 ? String(row[partnerIdx] || '').trim() : '';
-
-        if (!name || name === '#' || name.toLowerCase() === 'player') {
-          skipped++;
-          completed++;
-          return;
-        }
-
-        const payload: Registration = {
-          tournamentId: this.model.tournamentId,
-          format: fileFormat || this.model.format,
-          playerName: name,
-          email,
-          phone,
-          partnerName: this.showPartnerColumn() ? partner : '',
-          paymentStatus: paymentRaw.includes('PAID') ? 'PAID' : (this.finalFee() <= 0 ? 'PAID' : 'PENDING'),
-          teamMemberNames: [],
-          finalFee: this.finalFee(),
-          discountAmount: 0
-        };
-
-        this.api.register(payload).subscribe({
-          next: () => { created++; completed++; this.finishUploadIfDone(completed, dataRows.length, created, skipped); },
-          error: () => { completed++; this.finishUploadIfDone(completed, dataRows.length, created, skipped); }
-        });
-      });
-    };
-    reader.readAsText(file);
-    event.target.value = '';
+  downloadPlayersXlsx(allFormats:boolean) {
+    if (!this.model.tournamentId) {
+      this.registrationErrorMessage = 'Please select a tournament first.';
+      return;
+    }
+    const format = allFormats ? '' : (this.model.format || '');
+    this.api.exportRegisteredPlayers(this.model.tournamentId, format).subscribe({
+      next: blob => {
+        const tournament = (this.selectedTournament?.name || 'tournament').replace(/[^A-Za-z0-9._-]+/g, '-');
+        const suffix = allFormats ? 'all-formats' : (format || 'current-format').replace(/[^A-Za-z0-9._-]+/g, '-');
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${tournament}-registered-players-${suffix}.xlsx`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      },
+      error: err => this.registrationErrorMessage = this.displayError(err)
+    });
   }
 
   finishUploadIfDone(completed:number, total:number, created:number, skipped:number) {
@@ -567,6 +603,11 @@ export class RegistrationsComponent implements OnInit {
   }
 
   downloadPlayersCsv() {
+    if (!this.isAdmin()) {
+      this.registrationErrorMessage = 'Admin login is required for registration import/export.';
+      return;
+    }
+
     const headers = this.showPartnerColumn()
       ? ['#','Player','Format','Partner','Email','Phone','Final Fee','Payment']
       : ['#','Player','Format','Email','Phone','Final Fee','Payment'];
@@ -580,6 +621,11 @@ export class RegistrationsComponent implements OnInit {
   }
 
   downloadStandingsCsv() {
+    if (!this.isAdmin()) {
+      this.registrationErrorMessage = 'Admin login is required for registration import/export.';
+      return;
+    }
+
     if (!this.model.tournamentId || !this.model.format) {
       alert('Please select tournament and format first.');
       return;
@@ -638,7 +684,7 @@ export class RegistrationsComponent implements OnInit {
   removeSinglePlayer(p:Registration) {
     if (!p.id) return;
     this.selectedPlayerIds = {[p.id]: true};
-    this.removeSelectedPlayers();
+    this.openDeletePinModal();
   }
 
   removeSelectedPlayers() {
@@ -654,8 +700,8 @@ export class RegistrationsComponent implements OnInit {
     }
     if (!confirm(`Remove ${ids.length} selected player(s)?`)) return;
     this.api.deleteRegistrationsBulk(ids, pin).subscribe({
-      next: () => { this.selectedPlayerIds = {}; this.loadPlayers(); },
-      error: err => alert(this.displayError(err))
+      next: () => { this.selectedPlayerIds = {}; this.deletePinModalOpen=false; this.bulkRemovePin=''; this.loadPlayers(); },
+      error: err => { this.deletePinError=this.displayError(err); }
     });
   }
 

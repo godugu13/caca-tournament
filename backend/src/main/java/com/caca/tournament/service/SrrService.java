@@ -52,7 +52,7 @@ public class SrrService {
             throw new IllegalStateException("Complete all scores for SRR Round #" + (roundNumber - 1) + " before generating SRR Round #" + roundNumber);
         }
 
-        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrue(tournamentId, format);
+        List<Registration> registrations = registrationRepository.findByTournamentIdAndFormatAndAttendedTrueAndRecordStatusNot(tournamentId, format, "D");
         List<Registration> players = uniquePlayingUnits(registrations, format);
         if (players.size() < 2) {
             throw new IllegalStateException("Select attendance for at least 2 players/teams before generating SRR Round #1");
@@ -571,7 +571,7 @@ public class SrrService {
         // Standings must include only players/teams marked present in Game Day attendance.
         // Registered-but-absent players are not part of the active tournament field.
         List<Registration> players = uniquePlayingUnits(
-                registrationRepository.findByTournamentIdAndFormatAndAttendedTrue(tournamentId, format),
+                registrationRepository.findByTournamentIdAndFormatAndAttendedTrueAndRecordStatusNot(tournamentId, format, "D"),
                 format
         );
 

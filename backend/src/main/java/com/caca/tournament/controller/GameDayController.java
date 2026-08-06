@@ -66,7 +66,7 @@ public class GameDayController {
     @DeleteMapping("/{tournamentId}/{format}/matches")
     public ResponseEntity<?> deleteGeneratedRounds(@PathVariable String tournamentId, @PathVariable String format,
                                                    @RequestParam(defaultValue = "") String pin) {
-        if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Invalid admin PIN");
+        if (!isTournamentAdmin(pin, tournamentId)) return ResponseEntity.status(403).body("Invalid admin PIN");
         matchRepository.deleteByTournamentIdAndFormat(tournamentId, format);
         return ResponseEntity.ok(Map.of("deleted", true, "tournamentId", tournamentId, "format", format));
     }
@@ -78,7 +78,7 @@ public class GameDayController {
                                                  @RequestParam String roundType,
                                                  @RequestParam int roundNumber,
                                                  @RequestParam(defaultValue = "") String pin) {
-        if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Only Super Admin can delete rounds");
+        if (!isTournamentAdmin(pin, tournamentId)) return ResponseEntity.status(403).body("Invalid admin PIN");
 
         String selectedType = normalizeRoundType(roundType);
         List<Match> matches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
@@ -221,4 +221,10 @@ public class GameDayController {
     public List<Standing> standings(@PathVariable String tournamentId, @PathVariable String format) {
         return srrService.calculateStandings(tournamentId, format);
     }
+    private boolean isTournamentAdmin(String pin, String tournamentId) {
+        String normalized = pin == null ? "" : pin.replaceAll("[^0-9]", "");
+        if ("1123".equals(normalized)) return true;
+        return tournamentRepository.findById(tournamentId).map(t -> normalized.equals(t.getAdminPin() == null ? "" : t.getAdminPin().replaceAll("[^0-9]", ""))).orElse(false);
+    }
+
 }

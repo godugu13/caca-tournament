@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { NgIf } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AdminAccessService } from './services/admin-access.service';
+import { ApiService } from './services/api.service';
 
 @Component({
   selector: 'app-root',
@@ -36,8 +37,9 @@ import { AdminAccessService } from './services/admin-access.service';
     <main><router-outlet /></main><footer class="app-footer">© CACA 3.0 owners. All rights reserved.</footer>`
 })
 export class AppComponent {
-  constructor(private admin: AdminAccessService) {
+  constructor(private admin: AdminAccessService, private api: ApiService) {
     this.clearLegacyAdminLocalStorage();
+    this.startKeepAlive();
   }
 
   private clearLegacyAdminLocalStorage(): void {
@@ -48,4 +50,6 @@ export class AppComponent {
   }
   isAdmin(): boolean { return this.admin.isAdmin(); }
   logout(): void { this.admin.logout(); }
+  private startKeepAlive(): void { this.api.ping().subscribe({error:()=>{}}); window.setInterval(()=>this.api.ping().subscribe({error:()=>{}}),60000); }
+
 }

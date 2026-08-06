@@ -166,32 +166,8 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
 
 <div *ngIf="standings.length === 0" class="card empty-state">No finalized SRR standings available yet for this tournament.</div>
 
-<div *ngIf="standings.length > 0" class="card standings-card">
-  
-  <p class="warning" *ngIf="tournamentNotConducted()">Tournament is not yet conducted. Standings will appear after at least one round is generated/scored.</p>
-<table *ngIf="!tournamentNotConducted()">
-    <tr>
-      <th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th>
-      <th *ngIf="isSuperAdmin()">Wins Adj</th><th *ngIf="isSuperAdmin()">PD Adj</th><th *ngIf="isSuperAdmin()">Reason</th><th *ngIf="isSuperAdmin()">Save</th>
-    </tr>
-    <tr *ngFor="let s of standings">
-      <td>{{s.rank}}</td>
-      <td>{{s.playerName}}</td>
-      <td>{{s.wins}}</td>
-      <td>{{s.pointsFor}}</td>
-      <td>{{s.pointsAgainst}}</td>
-      <td>{{s.pointsDifferential}}</td>
-      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.winsAdjustment"></td>
-      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.pointsDifferentialAdjustment"></td>
-      <td *ngIf="isSuperAdmin()"><input class="reason-input" [(ngModel)]="s.adjustmentReason" placeholder="Reason"></td>
-      <td *ngIf="isSuperAdmin()"><button type="button" class="small" (click)="saveAdjustment(s)">Save</button></td>
-    </tr>
-  </table>
-  
-</div>
-
 <div *ngIf="historyGroups.length > 0" class="card history-card">
-  <h3>Round Details</h3>
+  <h3>SRR Round Details</h3>
   <div class="previous-tabs separated-round-tabs">
     <button type="button" class="secondary small" *ngFor="let group of historyGroups" (click)="selectHistoryGroup(group.key); $event.preventDefault(); $event.stopPropagation()" [class.active-tab]="selectedHistoryKey === group.key" [class.active-round-button]="selectedHistoryKey === group.key">
       {{group.label}}
@@ -234,7 +210,44 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
       </table>
     </ng-template>
   </div>
-</div>`
+</div>
+
+<div *ngIf="isAdminUser() && tournamentId" class="card standings-next-action-card">
+  <h3>Continue Tournament</h3>
+  <p class="muted">Generate the next SRR or knockout round directly from Standings.</p>
+  <button *ngIf="canGenerateNextSrrFromStandings()" type="button" (click)="generateNextFromStandings()">Generate SRR Round {{nextSrrRoundFromStandings()}}</button>
+  <button *ngIf="canGenerateKnockoutFromStandings()" type="button" class="yellow-btn" (click)="generateNextFromStandings()">Generate {{nextKnockoutLabelFromStandings()}}</button>
+  <p class="ok" *ngIf="roundActionMessage">{{roundActionMessage}}</p><p class="warning" *ngIf="roundActionError">{{roundActionError}}</p>
+</div>
+
+<div *ngIf="standings.length > 0" class="card standings-card summary-standings-card">
+  <button *ngIf="isAdminUser()" type="button" class="section-toggle" (click)="adminStandingsOpen = !adminStandingsOpen">{{adminStandingsOpen ? '▲ Close Admin Standings Editor' : '▼ Open Admin Standings Editor'}}</button>
+  <div *ngIf="!isAdminUser() || adminStandingsOpen">
+  
+  <p class="warning" *ngIf="tournamentNotConducted()">Tournament is not yet conducted. Standings will appear after at least one round is generated/scored.</p>
+<table *ngIf="!tournamentNotConducted()">
+    <tr>
+      <th>Rank</th><th>Player / Team</th><th>Wins</th><th>PF</th><th>PA</th><th>Point Diff</th>
+      <th *ngIf="isSuperAdmin()">Wins Adj</th><th *ngIf="isSuperAdmin()">PD Adj</th><th *ngIf="isSuperAdmin()">Reason</th><th *ngIf="isSuperAdmin()">Save</th>
+    </tr>
+    <tr *ngFor="let s of standings">
+      <td>{{s.rank}}</td>
+      <td>{{s.playerName}}</td>
+      <td>{{s.wins}}</td>
+      <td>{{s.pointsFor}}</td>
+      <td>{{s.pointsAgainst}}</td>
+      <td>{{s.pointsDifferential}}</td>
+      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.winsAdjustment"></td>
+      <td *ngIf="isSuperAdmin()"><input class="tiny-input" type="number" [(ngModel)]="s.pointsDifferentialAdjustment"></td>
+      <td *ngIf="isSuperAdmin()"><input class="reason-input" [(ngModel)]="s.adjustmentReason" placeholder="Reason"></td>
+      <td *ngIf="isSuperAdmin()"><button type="button" class="small" (click)="saveAdjustment(s)">Save</button></td>
+    </tr>
+  </table>
+  
+  </div>
+</div>
+
+`
 })
 export class StandingsComponent implements OnInit {
   tournaments: Tournament[] = [];
@@ -250,6 +263,9 @@ export class StandingsComponent implements OnInit {
   srrStandingsTitle = 'Current SRR Standings';
   latestKnockoutTitle = 'Tournament Cup';
   selectedHistoryKey = '';
+  adminStandingsOpen = false;
+  roundActionMessage = '';
+  roundActionError = '';
 
   constructor(private api: ApiService, private route: ActivatedRoute, private admin: AdminAccessService) {}
 
@@ -276,6 +292,26 @@ export class StandingsComponent implements OnInit {
     this.setTournamentName();
   }
 
+  isAdminUser(): boolean { return this.admin.isAdmin(); }
+  selectedTournament(): Tournament | undefined { return this.tournaments.find(t => t.id === this.tournamentId); }
+  latestGeneratedSrrRound(): number { const r=this.matches.filter(m=>(m.roundType||'SRR').toUpperCase()==='SRR').map(m=>Number(m.roundNumber||0)); return r.length?Math.max(...r):0; }
+  nextSrrRoundFromStandings(): number { return this.latestGeneratedSrrRound()+1; }
+  private srrRoundComplete(round:number): boolean { const ms=this.matches.filter(m=>(m.roundType||'SRR').toUpperCase()==='SRR'&&Number(m.roundNumber||0)===round); return ms.length>0&&ms.every(m=>!!m.scoreFinalized); }
+  canGenerateNextSrrFromStandings(): boolean { const configured=Number(this.selectedTournament()?.srrRounds||0), latest=this.latestGeneratedSrrRound(); return this.isAdminUser()&&configured>0&&latest<configured&&(latest===0||this.srrRoundComplete(latest)); }
+  private knockoutStageComplete(stage:string): boolean { const ms=this.matches.filter(m=>(m.roundType||'').toUpperCase()===stage); return ms.length>0&&ms.every(m=>!!m.scoreFinalized); }
+  nextKnockoutStageFromStandings(): string {
+    const configured=Number(this.selectedTournament()?.srrRounds||0); if(configured<=0||this.latestGeneratedSrrRound()<configured||!this.srrRoundComplete(configured)) return '';
+    const q=this.matches.some(m=>(m.roundType||'').toUpperCase()==='QUARTERS'), s=this.matches.some(m=>(m.roundType||'').toUpperCase()==='SEMIFINALS'), f=this.matches.some(m=>(m.roundType||'').toUpperCase()==='FINALS');
+    if(!q&&!s&&!f) return this.standings.length>4?'QUARTERS':'SEMIFINALS'; if(q&&this.knockoutStageComplete('QUARTERS')&&!s) return 'SEMIFINALS'; if(s&&this.knockoutStageComplete('SEMIFINALS')&&!f) return 'FINALS'; return '';
+  }
+  canGenerateKnockoutFromStandings(): boolean { return this.isAdminUser()&&!!this.nextKnockoutStageFromStandings(); }
+  nextKnockoutLabelFromStandings(): string { const s=this.nextKnockoutStageFromStandings(); return s==='QUARTERS'?'Quarterfinals':s==='SEMIFINALS'?'Semifinals':s==='FINALS'?'Finals':'Knockout Round'; }
+  generateNextFromStandings(): void {
+    this.roundActionMessage=''; this.roundActionError=''; if(!this.tournamentId||!this.format) return;
+    if(this.canGenerateNextSrrFromStandings()){ const r=this.nextSrrRoundFromStandings(); this.api.generateRound(this.tournamentId,this.format,r,'Board').subscribe({next:()=>{this.roundActionMessage=`SRR Round ${r} generated.`;this.load();},error:e=>this.roundActionError=e?.error?.message||e?.error||'Unable to generate next SRR round'}); return; }
+    const stage=this.nextKnockoutStageFromStandings(); if(stage) this.api.generateKnockout(this.tournamentId,this.format,stage).subscribe({next:()=>{this.roundActionMessage=`${this.nextKnockoutLabelFromStandings()} generated.`;this.load();},error:e=>this.roundActionError=e?.error?.message||e?.error||'Unable to generate knockout round'});
+  }
+
   load(): void {
     if (!this.tournamentId) return;
     this.remember();
@@ -285,7 +321,7 @@ export class StandingsComponent implements OnInit {
       this.standingsRoundLabel = this.buildStandingsRoundLabel(this.matches);
       this.srrStandingsTitle = this.buildSrrStandingsTitle(this.matches);
       this.latestKnockoutResults = this.buildKnockoutResultGroups(this.matches);
-      this.bracketGroups = [];
+      this.bracketGroups = this.buildBracketGroups(this.matches);
       this.latestKnockoutTitle = this.buildLatestKnockoutTitle(this.matches);
       this.historyGroups = this.buildHistoryGroups(this.matches);
       this.selectedHistoryKey = this.historyGroups.length ? this.historyGroups[0].key : '';
@@ -439,30 +475,19 @@ export class StandingsComponent implements OnInit {
   }
 
   private buildHistoryGroups(matches: Match[]): HistoryGroup[] {
-    const groups: HistoryGroup[] = [];
-
-    ['FINALS', 'SEMIFINALS', 'QUARTERS'].forEach(stage => {
-      const stageMatches = this.matchesForStage(matches, stage);
-      if (stageMatches.length > 0) {
-        groups.push({ key: stage, label: this.stageDisplay(stage), matches: stageMatches });
-      }
-    });
-
     const srrRounds = [...new Set(matches
       .filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR')
       .map(m => m.roundNumber || 0)
       .filter(r => r > 0))]
       .sort((a, b) => b - a);
 
-    srrRounds.forEach(round => groups.push({
+    return srrRounds.map(round => ({
       key: `SRR-${round}`,
       label: `SRR ${round}`,
       matches: matches
         .filter(m => (m.roundType || 'SRR').toUpperCase() === 'SRR' && (m.roundNumber || 0) === round)
         .sort((a, b) => this.boardSort(a) - this.boardSort(b))
     }));
-
-    return groups;
   }
 
   private latestGeneratedKnockoutStage(matches: Match[]): string {

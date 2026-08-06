@@ -16,6 +16,7 @@ export class ApiService {
   private baseUrl = '';
 
   constructor(private http: HttpClient, private config: AppConfigService) { this.baseUrl = this.config.apiBaseUrl(); }
+  ping(): Observable<any> { return this.http.get<any>(`${this.baseUrl}/ping`); }
   tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments`); }
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
   dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }
@@ -23,6 +24,7 @@ export class ApiService {
   updateTournament(id: string, t: Tournament): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}`, t); }
   deleteTournament(tournamentId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/tournaments/${tournamentId}?pin=${encodeURIComponent(pin)}`); }
   finalizeTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/finalize?pin=${encodeURIComponent(pin)}`, {}); }
+  reopenTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/reopen?pin=${encodeURIComponent(pin)}`, {}); }
   registrations(tournamentId: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}`); }
   registrationsByFormat(tournamentId: string, format: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/${format}`); }
   register(r: Registration): Observable<Registration> { return this.http.post<Registration>(`${this.baseUrl}/registrations`, r); }
@@ -35,6 +37,10 @@ export class ApiService {
     formData.append('format', format);
     formData.append('pin', pin);
     return this.http.post<any>(`${this.baseUrl}/roster/upload`, formData);
+  }
+  exportRegisteredPlayers(tournamentId: string, format: string = ''): Observable<Blob> {
+    const params = `tournamentId=${encodeURIComponent(tournamentId)}${format ? `&format=${encodeURIComponent(format)}` : ''}`;
+    return this.http.get(`${this.baseUrl}/roster/export?${params}`, { responseType: 'blob' });
   }
 
   deleteRegistration(registrationId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/registrations/${registrationId}?pin=${encodeURIComponent(pin)}`); }

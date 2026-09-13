@@ -2198,3 +2198,23 @@ This step is rebuilt from the stable Step 29.31C baseline.
 - Email, name, phone, format, payment and discount controls use compact widths/heights.
 - Mobile layout uses short label/value rows, compact controls, wrapping schedule/payment information, and horizontal scrolling only where tables require it.
 - Fast tournament catalog, Dashboard recovery, Admin edit, Restore, soft-delete, and Tournament Day Live behavior from prior steps are preserved.
+
+
+## Step 29.31J - Tournament Loading Performance Fix
+
+### Bottleneck found
+The previous Dashboard metadata endpoint used an N+1 MongoDB pattern:
+1 tournament query + 1 separate match-history query for every tournament.
+The application header also requested Dashboard metadata, and Register For re-requested tournament data every time the route was opened.
+
+### Fix
+- Dashboard metadata now performs one bulk match query for all visible tournament IDs and groups the matches in memory.
+- Removed the per-tournament MongoDB query loop from `/api/tournaments/dashboard`.
+- Added in-memory `shareReplay(1)` caching in Angular for:
+  - public tournament catalog,
+  - tournaments by Admin PIN,
+  - Dashboard tournament metadata.
+- Moving away from Register For and returning to it reuses the already-loaded tournament list instead of querying MongoDB again.
+- Tournament cache is automatically cleared after tournament create/edit/remove/restore/finalize/reopen/hide/show.
+- Dashboard match metadata cache is cleared after SRR/knockout generation or round removal.
+- Step 29.31I compact registration/mobile UI remains unchanged.

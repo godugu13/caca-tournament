@@ -9,6 +9,7 @@ public interface MatchRepository extends MongoRepository<Match, String> {
     List<Match> findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(String tournamentId, String format);
     List<Match> findByTournamentIdAndFormatAndRoundNumber(String tournamentId, String format, int roundNumber);
     java.util.List<com.caca.tournament.model.Match> findByTournamentIdOrderByRoundNumberAscBoardNumberAsc(String tournamentId);
+    java.util.List<com.caca.tournament.model.Match> findByTournamentIdInAndRecordStatusNot(java.util.List<String> tournamentIds, String recordStatus);
 
     default java.util.List<com.caca.tournament.model.Match> findActiveByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(String tournamentId, String format) {
         return findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format)

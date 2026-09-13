@@ -17,6 +17,8 @@ import java.util.Optional;
 import java.util.Map;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.Collections;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tournaments")
@@ -71,19 +73,34 @@ public class TournamentController {
 
     @GetMapping("/dashboard")
     public List<DashboardTournament> dashboardTournaments() {
-        return repository.findAll().stream()
+        List<Tournament> tournaments = repository.findAll().stream()
                 .filter(this::isActiveTournament)
                 .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
                 .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
-                .map(this::toDashboardTournamentSafe)
+                .toList();
+
+        if (tournaments.isEmpty()) return List.of();
+
+        List<String> tournamentIds = tournaments.stream()
+                .map(Tournament::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .toList();
+
+        Map<String, List<Match>> matchesByTournament = matchRepository
+                .findByTournamentIdInAndRecordStatusNot(tournamentIds, "D")
+                .stream()
+                .collect(Collectors.groupingBy(Match::getTournamentId));
+
+        return tournaments.stream()
+                .map(t -> toDashboardTournamentSafe(
+                        t,
+                        matchesByTournament.getOrDefault(t.getId(), Collections.emptyList())
+                ))
                 .toList();
     }
 
-    private DashboardTournament toDashboardTournamentSafe(Tournament tournament) {
+    private DashboardTournament toDashboardTournamentSafe(Tournament tournament, List<Match> tournamentMatches) {
         try {
-            List<Match> tournamentMatches = matchRepository
-                    .findActiveByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
-
             Optional<Match> finalWinner = tournamentMatches.stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
                     .filter(m -> Boolean.TRUE.equals(m.getScoreFinalized()))
@@ -101,8 +118,6 @@ public class TournamentController {
                     srrStarted
             );
         } catch (Exception ignored) {
-            // Older tournament/match data must never prevent the whole dashboard
-            // from loading. Tournament status still determines completed/open.
             return new DashboardTournament(
                     tournament,
                     "COMPLETED".equalsIgnoreCase(tournament.getStatus()),

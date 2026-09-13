@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AppConfigService } from './app-config.service';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay, tap } from 'rxjs';
 import { Match, Registration, Standing, Tournament, Member, PlayerScoreLookupResponse, DashboardTournament, PublicRegistration } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -14,20 +14,94 @@ export class ApiService {
   //   Uses environment.apiBaseUrl / the configured Render backend.
   //   The old Deployment Settings screen is no longer part of normal navigation.
   private baseUrl = '';
+  private tournamentCatalogCache$?: Observable<Tournament[]>;
+  private tournamentByPinCache = new Map<string, Observable<Tournament[]>>();
+  private dashboardTournamentCache$?: Observable<DashboardTournament[]>;
 
   constructor(private http: HttpClient, private config: AppConfigService) { this.baseUrl = this.config.apiBaseUrl(); }
+
+  private clearTournamentCaches(): void {
+    this.tournamentCatalogCache$ = undefined;
+    this.tournamentByPinCache.clear();
+    this.dashboardTournamentCache$ = undefined;
+  }
+
+  private clearDashboardCache(): void {
+    this.dashboardTournamentCache$ = undefined;
+  }
+
   ping(): Observable<any> { return this.http.get<any>(`${this.baseUrl}/ping`); }
-  tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/catalog`); }
-  tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
-  manageTournaments(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/manage?pin=${encodeURIComponent(pin || '')}`); }
-  restoreTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/restore?pin=${encodeURIComponent(pin || '')}`, {}); }
-  dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }
-  createTournament(t: Tournament): Observable<Tournament> { return this.http.post<Tournament>(`${this.baseUrl}/tournaments`, t); }
-  updateTournament(id: string, t: Tournament, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}?pin=${encodeURIComponent(pin || '')}`, t); }
-  deleteTournament(tournamentId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/tournaments/${tournamentId}?pin=${encodeURIComponent(pin)}`); }
-  finalizeTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/finalize?pin=${encodeURIComponent(pin)}`, {}); }
-  reopenTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/reopen?pin=${encodeURIComponent(pin)}`, {}); }
-  setTournamentDashboardHidden(tournamentId: string, hidden: boolean, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/dashboard-visibility?hidden=${hidden}&pin=${encodeURIComponent(pin || '')}`, {}); }
+
+  tournaments(forceRefresh: boolean = false): Observable<Tournament[]> {
+    if (forceRefresh || !this.tournamentCatalogCache$) {
+      this.tournamentCatalogCache$ = this.http
+        .get<Tournament[]>(`${this.baseUrl}/tournaments/catalog`)
+        .pipe(shareReplay({bufferSize: 1, refCount: false}));
+    }
+    return this.tournamentCatalogCache$;
+  }
+
+  tournamentsByPin(pin: string, forceRefresh: boolean = false): Observable<Tournament[]> {
+    const key = (pin || '').trim();
+    if (forceRefresh || !this.tournamentByPinCache.has(key)) {
+      this.tournamentByPinCache.set(
+        key,
+        this.http
+          .get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(key)}`)
+          .pipe(shareReplay({bufferSize: 1, refCount: false}))
+      );
+    }
+    return this.tournamentByPinCache.get(key)!;
+  }
+
+  manageTournaments(pin: string): Observable<Tournament[]> {
+    return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/manage?pin=${encodeURIComponent(pin || '')}`);
+  }
+
+  restoreTournament(tournamentId: string, pin: string): Observable<Tournament> {
+    return this.http
+      .put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/restore?pin=${encodeURIComponent(pin || '')}`, {})
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  dashboardTournaments(forceRefresh: boolean = false): Observable<DashboardTournament[]> {
+    if (forceRefresh || !this.dashboardTournamentCache$) {
+      this.dashboardTournamentCache$ = this.http
+        .get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`)
+        .pipe(shareReplay({bufferSize: 1, refCount: false}));
+    }
+    return this.dashboardTournamentCache$;
+  }
+
+  createTournament(t: Tournament): Observable<Tournament> {
+    return this.http.post<Tournament>(`${this.baseUrl}/tournaments`, t)
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  updateTournament(id: string, t: Tournament, pin: string): Observable<Tournament> {
+    return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}?pin=${encodeURIComponent(pin || '')}`, t)
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  deleteTournament(tournamentId: string, pin: string): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/tournaments/${tournamentId}?pin=${encodeURIComponent(pin)}`)
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  finalizeTournament(tournamentId: string, pin: string): Observable<Tournament> {
+    return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/finalize?pin=${encodeURIComponent(pin)}`, {})
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  reopenTournament(tournamentId: string, pin: string): Observable<Tournament> {
+    return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/reopen?pin=${encodeURIComponent(pin)}`, {})
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
+
+  setTournamentDashboardHidden(tournamentId: string, hidden: boolean, pin: string): Observable<Tournament> {
+    return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/dashboard-visibility?hidden=${hidden}&pin=${encodeURIComponent(pin || '')}`, {})
+      .pipe(tap(() => this.clearTournamentCaches()));
+  }
   registrations(tournamentId: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}`); }
   publicRegistrationNames(tournamentId: string): Observable<PublicRegistration[]> { return this.http.get<PublicRegistration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/public-names`); }
   registrationsByFormat(tournamentId: string, format: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/${format}`); }
@@ -51,10 +125,19 @@ export class ApiService {
   deleteRegistrationsBulk(registrationIds: string[], pin: string): Observable<any> { return this.http.post<any>(`${this.baseUrl}/registrations/bulk-delete?pin=${encodeURIComponent(pin)}`, registrationIds); }
   updateAttendance(registrationId: string, attended: boolean): Observable<Registration> { return this.http.put<Registration>(`${this.baseUrl}/registrations/${registrationId}/attendance`, { attended }); }
   updatePaymentStatus(registrationId: string, paymentStatus: string): Observable<Registration> { return this.http.put<Registration>(`${this.baseUrl}/registrations/${registrationId}/payment`, { paymentStatus }); }
-  generateRound(tournamentId: string, format: string, round: number, venue: string): Observable<Match[]> { return this.http.post<Match[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/round/${round}/generate?venueName=${encodeURIComponent(venue)}`, {}); }
-  generateKnockout(tournamentId: string, format: string, stage: string, group: string = ''): Observable<Match[]> { return this.http.post<Match[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/knockout/${encodeURIComponent(stage)}/generate?group=${encodeURIComponent(group)}`, {}); }
+  generateRound(tournamentId: string, format: string, round: number, venue: string): Observable<Match[]> {
+    return this.http.post<Match[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/round/${round}/generate?venueName=${encodeURIComponent(venue)}`, {})
+      .pipe(tap(() => this.clearDashboardCache()));
+  }
+  generateKnockout(tournamentId: string, format: string, stage: string, group: string = ''): Observable<Match[]> {
+    return this.http.post<Match[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/knockout/${encodeURIComponent(stage)}/generate?group=${encodeURIComponent(group)}`, {})
+      .pipe(tap(() => this.clearDashboardCache()));
+  }
   matches(tournamentId: string, format: string, playerLookup: string = ''): Observable<Match[]> { const q = playerLookup ? `?playerLookup=${encodeURIComponent(playerLookup)}` : ''; return this.http.get<Match[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/matches${q}`); }
-  deleteGeneratedRounds(tournamentId: string, format: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/gameday/${tournamentId}/${format}/matches?pin=${encodeURIComponent(pin)}`); }
+  deleteGeneratedRounds(tournamentId: string, format: string, pin: string): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/gameday/${tournamentId}/${format}/matches?pin=${encodeURIComponent(pin)}`)
+      .pipe(tap(() => this.clearDashboardCache()));
+  }
   saveScore(match: Match): Observable<Match> { return this.http.put<Match>(`${this.baseUrl}/gameday/matches/${match.id}/score`, match); }
   standings(tournamentId: string, format: string): Observable<Standing[]> { return this.http.get<Standing[]>(`${this.baseUrl}/gameday/${tournamentId}/${format}/standings`); }
 
@@ -79,7 +162,8 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/standings-adjustments/${encodeURIComponent(tournamentId)}/${encodeURIComponent(format)}?pin=${encodeURIComponent(pin)}`, adjustment);
   }
   deleteSelectedRound(tournamentId: string, format: string, roundType: string, roundNumber: number, pin: string): Observable<any> {
-    return this.http.delete<any>(`${this.baseUrl}/gameday/${tournamentId}/${format}/round?roundType=${encodeURIComponent(roundType)}&roundNumber=${roundNumber}&pin=${encodeURIComponent(pin)}`);
+    return this.http.delete<any>(`${this.baseUrl}/gameday/${tournamentId}/${format}/round?roundType=${encodeURIComponent(roundType)}&roundNumber=${roundNumber}&pin=${encodeURIComponent(pin)}`)
+      .pipe(tap(() => this.clearDashboardCache()));
   }
   updateMatchBoard(matchId: string, boardNumber: string, venueName: string, pin: string): Observable<Match> {
     return this.http.put<Match>(`${this.baseUrl}/gameday/matches/${matchId}/board?pin=${encodeURIComponent(pin)}`, { boardNumber, venueName });

@@ -2143,3 +2143,27 @@ No scoring behavior or tournament logic was changed.
 - Completed tournaments are not shown in Tournament Day Live.
 
 No SRR generation, scoring, standings, or knockout logic was changed.
+
+
+## Step 29.31D - Admin Edit Tournament + Soft Delete
+
+### Edit Tournament
+- Logged-in tournament admins now see **Edit Tournament** from Dashboard for tournaments owned by their Admin PIN.
+- Super Admin can edit any active tournament.
+- Dashboard Edit opens `/tournaments` with that exact tournament loaded into Edit mode.
+- The Manage Tournament table keeps its Edit action.
+
+### Soft delete policy
+- Tournament removal is now a **soft delete**.
+- Removing a tournament marks it deleted and hides it from active/public/admin tournament lists.
+- Registrations, matches, scores, standings history and audit data are preserved.
+- Player/registration removal remains soft delete.
+- Generated-round removal is now soft delete too: selected/current/future match records are marked deleted instead of being physically removed.
+- All active match reads ignore soft-deleted match records, so admins can regenerate removed rounds while historical records remain in MongoDB.
+
+This step is based on Step 29.31C and preserves the SRR-start gating for Tournament Day Live.
+
+
+## Step 29.31E - Angular model compile fix
+- Removed duplicate Tournament `recordStatus`, `deletedAt`, and `deletedBy` declarations introduced in 29.31D.
+- No functional behavior changed from 29.31D.

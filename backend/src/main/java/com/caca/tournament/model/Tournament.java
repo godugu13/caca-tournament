@@ -1,5 +1,7 @@
 package com.caca.tournament.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
@@ -34,7 +36,11 @@ public class Tournament {
     private String flyerUrl;
     private String liveUrl;
     private Boolean hiddenFromDashboard = false;
+    private String recordStatus = "ACTIVE";
+    private String deletedAt;
+    private String deletedBy;
     private String completedAt;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String adminPin = "1123";
     private List<String> formats = new ArrayList<>();
     private String status = "OPEN";

@@ -2687,3 +2687,6 @@ h1, h2, h3,
     height: 38px;
   }
 }
+
+/* Step 29.31D */
+.dashboard-edit-link { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }

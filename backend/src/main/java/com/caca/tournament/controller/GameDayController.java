@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/gameday")
@@ -45,7 +46,7 @@ public class GameDayController {
     @GetMapping("/{tournamentId}/{format}/matches")
     public List<Match> matches(@PathVariable String tournamentId, @PathVariable String format,
                                @RequestParam(defaultValue = "") String playerLookup) {
-        List<Match> matches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+        List<Match> matches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
         if (playerLookup == null || playerLookup.isBlank()) return matches;
         String lookup = playerLookup.trim().toLowerCase();
         return matches.stream().filter(m ->
@@ -67,8 +68,21 @@ public class GameDayController {
     public ResponseEntity<?> deleteGeneratedRounds(@PathVariable String tournamentId, @PathVariable String format,
                                                    @RequestParam(defaultValue = "") String pin) {
         if (!isTournamentAdmin(pin, tournamentId)) return ResponseEntity.status(403).body("Invalid admin PIN");
-        matchRepository.deleteByTournamentIdAndFormat(tournamentId, format);
-        return ResponseEntity.ok(Map.of("deleted", true, "tournamentId", tournamentId, "format", format));
+        List<Match> matches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
+        String deletedBy = normalizePin(pin);
+        String deletedAt = Instant.now().toString();
+        matches.forEach(m -> {
+            m.setRecordStatus("D");
+            m.setDeletedAt(deletedAt);
+            m.setDeletedBy(deletedBy);
+        });
+        matchRepository.saveAll(matches);
+        return ResponseEntity.ok(Map.of(
+                "deleted", matches.size(),
+                "softDeleted", true,
+                "tournamentId", tournamentId,
+                "format", format
+        ));
     }
 
 
@@ -81,19 +95,27 @@ public class GameDayController {
         if (!isTournamentAdmin(pin, tournamentId)) return ResponseEntity.status(403).body("Invalid admin PIN");
 
         String selectedType = normalizeRoundType(roundType);
-        List<Match> matches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+        List<Match> matches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
 
         List<Match> toDelete = matches.stream()
                 .filter(m -> shouldDeleteFromSelectedRound(selectedType, roundNumber, normalizeRoundType(m.getRoundType()), m.getRoundNumber()))
                 .toList();
 
-        matchRepository.deleteAll(toDelete);
+        String deletedBy = normalizePin(pin);
+        String deletedAt = Instant.now().toString();
+        toDelete.forEach(m -> {
+            m.setRecordStatus("D");
+            m.setDeletedAt(deletedAt);
+            m.setDeletedBy(deletedBy);
+        });
+        matchRepository.saveAll(toDelete);
 
         return ResponseEntity.ok(Map.of(
                 "deleted", toDelete.size(),
+                "softDeleted", true,
                 "roundType", selectedType,
                 "roundNumber", roundNumber,
-                "message", "Deleted selected round and all future rounds"
+                "message", "Removed selected round and all future rounds (history preserved)"
         ));
     }
 
@@ -138,7 +160,7 @@ public class GameDayController {
                                          @RequestBody Map<String, String> request,
                                          @RequestParam(defaultValue = "") String pin) {
         if (!"1123".equals(pin)) return ResponseEntity.status(403).body("Only Super Admin can change board numbers");
-        Match match = matchRepository.findById(matchId).orElseThrow();
+        Match match = matchRepository.findById(matchId).filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus())).orElseThrow();
         match.setBoardNumber(request.getOrDefault("boardNumber", match.getBoardNumber()));
         match.setVenueName(request.getOrDefault("venueName", match.getVenueName()));
         return ResponseEntity.ok(matchRepository.save(match));
@@ -146,7 +168,7 @@ public class GameDayController {
 
     @PutMapping("/matches/{matchId}/score")
     public Match score(@PathVariable String matchId, @RequestBody Match request) {
-        Match match = matchRepository.findById(matchId).orElseThrow();
+        Match match = matchRepository.findById(matchId).filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus())).orElseThrow();
 
         boolean finalized = Boolean.TRUE.equals(request.getScoreFinalized());
         match.setScoreFinalized(finalized);
@@ -225,6 +247,10 @@ public class GameDayController {
         String normalized = pin == null ? "" : pin.replaceAll("[^0-9]", "");
         if ("1123".equals(normalized)) return true;
         return tournamentRepository.findById(tournamentId).map(t -> normalized.equals(t.getAdminPin() == null ? "" : t.getAdminPin().replaceAll("[^0-9]", ""))).orElse(false);
+    }
+
+    private String normalizePin(String pin) {
+        return pin == null ? "" : pin.replaceAll("[^0-9]", "").trim();
     }
 
 }

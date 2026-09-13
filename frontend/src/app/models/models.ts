@@ -18,6 +18,9 @@ export interface Tournament {
   flyerUrl?: string;
   liveUrl?: string;
   hiddenFromDashboard?: boolean;
+  recordStatus?: string;
+  deletedAt?: string;
+  deletedBy?: string;
   completedAt?: string;
   tournamentDate?: string;
   tournamentEndDate?: string;
@@ -85,6 +88,9 @@ export interface Match {
   player2BoardScores?: number[];
   scoreFinalized?: boolean;
   status?: string;
+  recordStatus?: string;
+  deletedAt?: string;
+  deletedBy?: string;
   winnerId?: string;
   discountOptions?: DiscountOption[];
 }

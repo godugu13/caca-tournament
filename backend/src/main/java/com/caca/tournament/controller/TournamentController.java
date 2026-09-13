@@ -28,13 +28,15 @@ public class TournamentController {
     private final MatchRepository matchRepository;
 
     @GetMapping
-    public List<Tournament> all() { return repository.findAll(); }
+    public List<Tournament> all() {
+        return repository.findAll().stream().filter(this::isActiveTournament).toList();
+    }
 
     @GetMapping("/by-pin")
     public List<Tournament> byPin(@RequestParam(defaultValue = "") String pin) {
-        if (isSuperAdminPin(pin)) return repository.findAll();
+        if (isSuperAdminPin(pin)) return repository.findAll().stream().filter(this::isActiveTournament).toList();
         if (pin == null || pin.isBlank()) return List.of();
-        return repository.findByAdminPin(pin);
+        return repository.findByAdminPin(pin).stream().filter(this::isActiveTournament).toList();
     }
 
 
@@ -42,10 +44,11 @@ public class TournamentController {
     @GetMapping("/dashboard")
     public List<DashboardTournament> dashboardTournaments() {
         return repository.findAll().stream()
+                .filter(this::isActiveTournament)
                 .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
                 .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
                 .map(tournament -> {
-            List<Match> tournamentMatches = matchRepository.findByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
+            List<Match> tournamentMatches = matchRepository.findByTournamentIdAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournament.getId(), "D");
             Optional<Match> finalWinner = tournamentMatches.stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
                     .filter(m -> Boolean.TRUE.equals(m.getScoreFinalized()))
@@ -80,16 +83,25 @@ public class TournamentController {
             return ResponseEntity.badRequest().body("This Admin PIN is already used by another organizer. Please choose a different PIN.");
         }
         tournament.setAdminPin(pin);
+        tournament.setRecordStatus("ACTIVE");
+        tournament.setDeletedAt(null);
+        tournament.setDeletedBy(null);
         return ResponseEntity.ok(repository.save(tournament));
     }
 
     @GetMapping("/{id}")
-    public Tournament get(@PathVariable String id) { return repository.findById(id).orElseThrow(); }
+    public Tournament get(@PathVariable String id) {
+        return repository.findById(id).filter(this::isActiveTournament).orElseThrow();
+    }
 
 
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody Tournament request) {
-        Tournament existing = repository.findById(id).orElseThrow();
+        Tournament existing = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
+        String authorizationPin = normalizePin(request.getAdminPin());
+        if (!isAdminPin(authorizationPin, existing)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
+        }
         existing.setName(request.getName());
         existing.setTournamentType(request.getTournamentType());
         existing.setPlayersPerTeam(request.getPlayersPerTeam());
@@ -109,12 +121,12 @@ public class TournamentController {
         existing.setFlyerUrl(request.getFlyerUrl());
         existing.setLiveUrl(request.getLiveUrl());
         existing.setFormats(request.getFormats());
-        if (request.getAdminPin() != null && !request.getAdminPin().isBlank()) {
+        // The PIN in the request authenticates the edit. Normal organizer edits do not transfer ownership.
+        if (isSuperAdminPin(authorizationPin) && request.getAdminPin() != null && !request.getAdminPin().isBlank()) {
             String requestedPin = normalizePin(request.getAdminPin());
-            if (!requestedPin.equals(existing.getAdminPin()) && !isSuperAdminPin(requestedPin) && repository.existsByAdminPin(requestedPin)) {
+            if (!isSuperAdminPin(requestedPin) && !requestedPin.equals(existing.getAdminPin()) && repository.existsByAdminPin(requestedPin)) {
                 return ResponseEntity.badRequest().body("This Admin PIN is already used by another organizer. Please choose a different PIN.");
             }
-            existing.setAdminPin(requestedPin);
         }
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             existing.setStatus(request.getStatus());
@@ -124,7 +136,7 @@ public class TournamentController {
 
     @PutMapping("/{id}/finalize")
     public ResponseEntity<?> finalizeTournament(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
-        Tournament tournament = repository.findById(id).orElseThrow();
+        Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
         tournament.setStatus("COMPLETED");
         tournament.setCompletedAt(Instant.now().toString());
@@ -133,7 +145,7 @@ public class TournamentController {
 
     @PutMapping("/{id}/reopen")
     public ResponseEntity<?> reopenTournament(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
-        Tournament tournament = repository.findById(id).orElseThrow();
+        Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
         tournament.setStatus("OPEN"); tournament.setCompletedAt(null);
         return ResponseEntity.ok(repository.save(tournament));
@@ -148,19 +160,33 @@ public class TournamentController {
         if (!isSuperAdminPin(pin)) {
             return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN required"));
         }
-        Tournament tournament = repository.findById(id).orElseThrow();
+        Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         tournament.setHiddenFromDashboard(hidden);
         return ResponseEntity.ok(repository.save(tournament));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
-        Tournament tournament = repository.findById(id).orElseThrow();
+        Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
-        matchRepository.deleteByTournamentId(id);
-        registrationRepository.deleteByTournamentId(id);
-        repository.deleteById(id);
-        return ResponseEntity.ok(Map.of("deleted", true, "tournamentId", id));
+
+        tournament.setRecordStatus("D");
+        tournament.setDeletedAt(Instant.now().toString());
+        tournament.setDeletedBy(normalizePin(pin));
+        tournament.setHiddenFromDashboard(true);
+        repository.save(tournament);
+
+        // Preserve registrations, matches, scores, standings history and audits.
+        // A tournament soft-delete only removes it from active application views.
+        return ResponseEntity.ok(Map.of(
+                "deleted", true,
+                "softDeleted", true,
+                "tournamentId", id
+        ));
+    }
+
+    private boolean isActiveTournament(Tournament tournament) {
+        return tournament != null && !"D".equalsIgnoreCase(tournament.getRecordStatus());
     }
 
     private String normalizePin(String pin) {

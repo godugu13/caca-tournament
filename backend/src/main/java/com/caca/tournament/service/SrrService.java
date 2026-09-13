@@ -33,7 +33,7 @@ public class SrrService {
             throw new IllegalStateException("Round must be between 1 and " + maxRounds);
         }
 
-        List<Match> existingMatches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format)
+        List<Match> existingMatches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D")
                 .stream()
                 .filter(m -> "SRR".equalsIgnoreCase(m.getRoundType()))
                 .toList();
@@ -148,7 +148,7 @@ public class SrrService {
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new IllegalStateException("Selected tournament was not found. Please refresh Game Day page and select the tournament again."));
 
-        List<Match> allMatches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+        List<Match> allMatches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
         ensureAllSrrRoundsComplete(allMatches, tournament.getSrrRounds());
 
         boolean stageAlreadyGenerated = allMatches.stream().anyMatch(m -> stage.equalsIgnoreCase(m.getRoundType()));
@@ -592,7 +592,7 @@ public class SrrService {
             registerStandingAlias(aliasMap, displayName(p), standing);
         }
 
-        List<Match> matches = matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
+        List<Match> matches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
         for (Match m : matches) {
             // Standings/ranking seed is based on finalized SRR results only.
             // Knockout matches should not change the SRR ranking table.
@@ -681,7 +681,7 @@ public class SrrService {
     }
 
     private Set<String> existingPairs(String tournamentId, String format) {
-        return matchRepository.findByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format)
+        return matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D")
                 .stream()
                 .filter(m -> "SRR".equalsIgnoreCase(m.getRoundType()))
                 .filter(m -> !"BYE".equalsIgnoreCase(m.getStatus()))

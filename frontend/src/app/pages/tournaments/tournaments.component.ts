@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf } from '@angular/common';
 import { ApiService } from '../../services/api.service';
@@ -177,7 +178,7 @@ import { Tournament, Registration } from '../../models/models';
       <button type="button" class="black-btn small" *ngIf="isSuperAdmin()" (click)="toggleDashboardVisibility(t)">{{t.hiddenFromDashboard ? 'Show Publicly' : 'Hide Publicly'}}</button>
       <button type="button" class="yellow-btn small" *ngIf="(t.status || 'OPEN') !== 'COMPLETED'" (click)="completeTournament(t)">Complete Tournament</button>
       <button type="button" class="secondary small" *ngIf="t.status === 'COMPLETED'" (click)="reopenTournament(t)">Reopen</button>
-      <button type="button" class="danger small" (click)="askDelete(t)">Delete</button>
+      <button type="button" class="danger small" (click)="askDelete(t)">Remove</button>
     </td>
   </tr>
 </table>
@@ -204,12 +205,12 @@ import { Tournament, Registration } from '../../models/models';
 </div>
 
 <div class="card form delete-confirm" *ngIf="pendingDelete">
-  <h3>Delete Tournament</h3>
-  <p>Enter tournament Admin PIN or Super Admin PIN to delete <b>{{pendingDelete.name}}</b>. This also deletes related registrations and generated matches.</p>
+  <h3>Remove Tournament</h3>
+  <p>Enter tournament Admin PIN or Super Admin PIN to remove <b>{{pendingDelete.name}}</b> from active views. Tournament records, registrations, matches, scores and history are preserved.</p>
   <label>Admin PIN <span class="required">*</span></label>
   <input type="password" [(ngModel)]="deletePin" placeholder="Enter admin PIN" autocomplete="off">
   <div class="action-row">
-    <button type="button" class="danger" (click)="confirmDelete()">Confirm Delete</button>
+    <button type="button" class="danger" (click)="confirmDelete()">Confirm Remove</button>
     <button type="button" class="secondary" (click)="cancelDelete()">Cancel</button>
   </div>
 </div>`
@@ -226,7 +227,7 @@ export class TournamentsComponent implements OnInit {
   editMode = false;
   model: Tournament=this.emptyModel();
 
-  constructor(private api:ApiService, private admin: AdminAccessService){}
+  constructor(private api:ApiService, private admin: AdminAccessService, private route: ActivatedRoute){}
   isSuperAdmin(){ return this.admin.isSuperAdmin(); }
   toggleDashboardVisibility(t:Tournament){
     if(!t.id) return;
@@ -236,8 +237,19 @@ export class TournamentsComponent implements OnInit {
     });
   }
 
-  ngOnInit(){this.load()}
-  load(){this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x=>this.tournaments=x)}
+  ngOnInit(){ this.load(); }
+  load(){
+    this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x => {
+      this.tournaments = x || [];
+      this.openRequestedTournamentForEdit();
+    });
+  }
+  private openRequestedTournamentForEdit(): void {
+    const requestedId = this.route.snapshot.queryParamMap.get('editTournamentId');
+    if (!requestedId || this.editMode) return;
+    const tournament = this.tournaments.find(t => t.id === requestedId);
+    if (tournament) this.editTournament(tournament);
+  }
   emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any, tournamentStartTime:'09:00', tournamentEndTime:'19:00'}; }
   defaultDiscountOptions(){
     return [
@@ -401,7 +413,7 @@ export class TournamentsComponent implements OnInit {
     if(!this.pendingDelete?.id) return;
     this.api.deleteTournament(this.pendingDelete.id,this.deletePin).subscribe({
       next:()=>{ this.cancelDelete(); this.load(); },
-      error:err=>alert(err?.error || 'Unable to delete tournament')
+      error:err=>alert(err?.error || 'Unable to remove tournament')
     });
   }
 }

@@ -61,6 +61,8 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
           <button type="button" class="secondary small" (click)="toggleRegisteredPlayers(item.tournament)">
             {{playersOpen[item.tournament.id || ''] ? 'Hide Players' : 'Registered Players'}}
           </button>
+          <a *ngIf="canEditTournament(item.tournament)" class="secondary small dashboard-edit-link"
+             [routerLink]="['/tournaments']" [queryParams]="{editTournamentId:item.tournament.id}">Edit Tournament</a>
           <a *ngIf="item.srrStarted && item.tournament.liveUrl" class="live-link-small" [href]="item.tournament.liveUrl" target="_blank" rel="noopener">🔴 Live</a>
         </div>
 
@@ -96,7 +98,11 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
         <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'Date not set'}}</span>
       </div>
       <div class="champion-dashboard-badge" *ngIf="item.championName">🏆 {{item.championName}}</div>
-      <a [routerLink]="bracketsLink(item.tournament)" class="results-button">View Results</a>
+      <div class="dashboard-row-actions">
+        <a [routerLink]="bracketsLink(item.tournament)" class="results-button">View Results</a>
+        <a *ngIf="canEditTournament(item.tournament)" class="secondary small dashboard-edit-link"
+           [routerLink]="['/tournaments']" [queryParams]="{editTournamentId:item.tournament.id}">Edit Tournament</a>
+      </div>
     </article>
   </div>
 </section>
@@ -108,11 +114,26 @@ export class DashboardComponent implements OnInit {
   registeredPlayers: {[tournamentId: string]: PublicRegistration[]} = {};
   playersOpen: {[tournamentId: string]: boolean} = {};
   playersLoading: {[tournamentId: string]: boolean} = {};
+  editableTournamentIds = new Set<string>();
 
   constructor(private api: ApiService, private admin: AdminAccessService) {}
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.loadEditableTournaments();
+    this.load();
+  }
   isSuperAdmin(): boolean { return this.admin.isSuperAdmin(); }
+  canEditTournament(t: Tournament): boolean {
+    if (!this.admin.isAdmin() || !t.id) return false;
+    return this.admin.isSuperAdmin() || this.editableTournamentIds.has(t.id);
+  }
+  private loadEditableTournaments(): void {
+    if (!this.admin.isAdmin()) return;
+    this.api.tournamentsByPin(this.admin.currentPin()).subscribe({
+      next: tournaments => this.editableTournamentIds = new Set((tournaments || []).map(t => t.id || '').filter(Boolean)),
+      error: () => this.editableTournamentIds = new Set<string>()
+    });
+  }
 
   load(): void {
     this.api.dashboardTournaments().subscribe(tournaments => {

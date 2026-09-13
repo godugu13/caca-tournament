@@ -42,4 +42,7 @@ public class Match {
 
     private String winnerId;
     private String status = "SCHEDULED";
+    private String recordStatus = "ACTIVE";
+    private String deletedAt;
+    private String deletedBy;
 }

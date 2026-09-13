@@ -39,7 +39,7 @@ public class PlayerScoreService {
             return PlayerScoreLookupResponse.notFound("Please enter registered phone number.");
         }
 
-        List<Match> allMatches = matchRepository.findByTournamentIdAndFormatAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournamentId, format, "D");
+        List<Match> allMatches = matchRepository.findActiveByTournamentIdAndFormatOrderByRoundNumberAscBoardNumberAsc(tournamentId, format);
         List<Match> accessible = allMatches.stream()
                 .filter(m -> phoneMatches(m, normalizedPhone))
                 .sorted(Comparator.comparingInt(this::roundSortValue).thenComparing(m -> safeBoardNumber(m.getBoardNumber())))
@@ -73,7 +73,9 @@ public class PlayerScoreService {
     }
 
     public Match saveBoard(String matchId, int boardNumber, BoardScoreRequest request, HttpServletRequest httpRequest) {
-        Match match = matchRepository.findById(matchId).filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus())).orElseThrow();
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus()))
+                .orElseThrow();
         validatePhoneAccess(match, request == null ? null : request.getPhone(), false);
         ensureBoardArrays(match);
 
@@ -99,7 +101,9 @@ public class PlayerScoreService {
     }
 
     public Match finalizeMatch(String matchId, String phone, PlayerScoreFinalizeRequest meta, HttpServletRequest httpRequest) {
-        Match match = matchRepository.findById(matchId).filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus())).orElseThrow();
+        Match match = matchRepository.findById(matchId)
+                .filter(m -> !"D".equalsIgnoreCase(m.getRecordStatus()))
+                .orElseThrow();
         validatePhoneAccess(match, phone, false);
         ensureBoardArrays(match);
 

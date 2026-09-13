@@ -21,7 +21,7 @@ export class ApiService {
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
   dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }
   createTournament(t: Tournament): Observable<Tournament> { return this.http.post<Tournament>(`${this.baseUrl}/tournaments`, t); }
-  updateTournament(id: string, t: Tournament): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}`, t); }
+  updateTournament(id: string, t: Tournament, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}?pin=${encodeURIComponent(pin || '')}`, t); }
   deleteTournament(tournamentId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/tournaments/${tournamentId}?pin=${encodeURIComponent(pin)}`); }
   finalizeTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/finalize?pin=${encodeURIComponent(pin)}`, {}); }
   reopenTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/reopen?pin=${encodeURIComponent(pin)}`, {}); }

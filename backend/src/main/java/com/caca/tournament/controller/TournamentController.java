@@ -48,7 +48,7 @@ public class TournamentController {
                 .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
                 .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
                 .map(tournament -> {
-            List<Match> tournamentMatches = matchRepository.findByTournamentIdAndRecordStatusNotOrderByRoundNumberAscBoardNumberAsc(tournament.getId(), "D");
+            List<Match> tournamentMatches = matchRepository.findActiveByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
             Optional<Match> finalWinner = tournamentMatches.stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
                     .filter(m -> Boolean.TRUE.equals(m.getScoreFinalized()))
@@ -83,6 +83,7 @@ public class TournamentController {
             return ResponseEntity.badRequest().body("This Admin PIN is already used by another organizer. Please choose a different PIN.");
         }
         tournament.setAdminPin(pin);
+        normalizeDiscountOptions(tournament);
         tournament.setRecordStatus("ACTIVE");
         tournament.setDeletedAt(null);
         tournament.setDeletedBy(null);
@@ -96,10 +97,11 @@ public class TournamentController {
 
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody Tournament request) {
+    public ResponseEntity<?> update(@PathVariable String id,
+                                    @RequestParam(defaultValue = "") String pin,
+                                    @Valid @RequestBody Tournament request) {
         Tournament existing = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
-        String authorizationPin = normalizePin(request.getAdminPin());
-        if (!isAdminPin(authorizationPin, existing)) {
+        if (!isAdminPin(pin, existing)) {
             return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
         }
         existing.setName(request.getName());
@@ -121,13 +123,8 @@ public class TournamentController {
         existing.setFlyerUrl(request.getFlyerUrl());
         existing.setLiveUrl(request.getLiveUrl());
         existing.setFormats(request.getFormats());
-        // The PIN in the request authenticates the edit. Normal organizer edits do not transfer ownership.
-        if (isSuperAdminPin(authorizationPin) && request.getAdminPin() != null && !request.getAdminPin().isBlank()) {
-            String requestedPin = normalizePin(request.getAdminPin());
-            if (!isSuperAdminPin(requestedPin) && !requestedPin.equals(existing.getAdminPin()) && repository.existsByAdminPin(requestedPin)) {
-                return ResponseEntity.badRequest().body("This Admin PIN is already used by another organizer. Please choose a different PIN.");
-            }
-        }
+        existing.setDiscountOptions(request.getDiscountOptions());
+        normalizeDiscountOptions(existing);
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             existing.setStatus(request.getStatus());
         }
@@ -169,20 +166,12 @@ public class TournamentController {
     public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(defaultValue = "") String pin) {
         Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
-
         tournament.setRecordStatus("D");
         tournament.setDeletedAt(Instant.now().toString());
         tournament.setDeletedBy(normalizePin(pin));
         tournament.setHiddenFromDashboard(true);
         repository.save(tournament);
-
-        // Preserve registrations, matches, scores, standings history and audits.
-        // A tournament soft-delete only removes it from active application views.
-        return ResponseEntity.ok(Map.of(
-                "deleted", true,
-                "softDeleted", true,
-                "tournamentId", id
-        ));
+        return ResponseEntity.ok(Map.of("deleted", true, "softDeleted", true, "tournamentId", id));
     }
 
     private boolean isActiveTournament(Tournament tournament) {

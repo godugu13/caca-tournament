@@ -133,13 +133,17 @@ import { Tournament, Registration } from '../../models/models';
         </div>
       </div>
 
-      <div class="field-group pin-field">
+      <div class="field-group pin-field" *ngIf="!editMode">
         <label>Organization / Tournament Admin PIN <span class="required">*</span></label>
         <div class="pin-row">
           <input class="pin-input-short" [type]="showAdminPin ? 'text' : 'password'" [(ngModel)]="model.adminPin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" autocomplete="off">
           <button type="button" class="secondary pin-toggle-btn" (click)="showAdminPin = !showAdminPin">{{ showAdminPin ? 'Hide' : 'Show' }}</button>
         </div>
         <small class="muted">Each organization can create its own 4-digit tournament admin PIN to protect tournament management from unauthorized users.</small>
+      </div>
+      <div class="field-group pin-field" *ngIf="editMode">
+        <label>Admin Authorization</label>
+        <div class="muted">Editing with your current authenticated Admin session. Tournament ownership PIN is not changed.</div>
       </div>
 
       <div class="field-group description-field-wrap">
@@ -206,7 +210,7 @@ import { Tournament, Registration } from '../../models/models';
 
 <div class="card form delete-confirm" *ngIf="pendingDelete">
   <h3>Remove Tournament</h3>
-  <p>Enter tournament Admin PIN or Super Admin PIN to remove <b>{{pendingDelete.name}}</b> from active views. Tournament records, registrations, matches, scores and history are preserved.</p>
+  <p>Enter tournament Admin PIN or Super Admin PIN to remove <b>{{pendingDelete.name}}</b> from active views. Registrations, matches, scores and history are preserved.</p>
   <label>Admin PIN <span class="required">*</span></label>
   <input type="password" [(ngModel)]="deletePin" placeholder="Enter admin PIN" autocomplete="off">
   <div class="action-row">
@@ -313,9 +317,12 @@ export class TournamentsComponent implements OnInit {
     this.model.srrRounds = Number(this.model.srrRounds || 5);
     this.model.knockoutRounds = Number(this.model.knockoutRounds || 0);
     this.model.totalNumberOfPlayers = this.model.totalNumberOfPlayers ? Number(this.model.totalNumberOfPlayers) : undefined;
-    this.model.adminPin = (this.model.adminPin || '').replace(/[^0-9]/g, '').slice(0, 4);
-    if (!this.model.adminPin || this.model.adminPin.length !== 4) {
-      this.model.adminPin = this.admin.currentPin() || '1123';
+    if (!this.editMode) {
+      this.model.adminPin = (this.model.adminPin || '').replace(/[^0-9]/g, '').slice(0, 4);
+      if (!this.model.adminPin || this.model.adminPin.length !== 4) {
+        alert('Please enter a 4-digit Tournament Admin PIN.');
+        return;
+      }
     }
     if (!this.multiFormatSelected()) {
       this.model.tournamentEndDate = undefined;
@@ -327,7 +334,10 @@ export class TournamentsComponent implements OnInit {
     if (this.isFormatSelected('Team Event')) this.model.playersPerTeam = Number(this.model.playersPerTeam || 3);
 
     const payload: Tournament = JSON.parse(JSON.stringify(this.model));
-    const request = this.editMode && payload.id ? this.api.updateTournament(payload.id, payload) : this.api.createTournament(payload);
+    if (this.editMode) payload.adminPin = undefined;
+    const request = this.editMode && payload.id
+      ? this.api.updateTournament(payload.id, payload, this.admin.currentPin())
+      : this.api.createTournament(payload);
     request.subscribe({
       next: () => {
         this.cancelEdit();
@@ -402,6 +412,7 @@ export class TournamentsComponent implements OnInit {
     this.model = JSON.parse(JSON.stringify(t));
     this.model.discountOptions = this.mergeDiscountOptions((this.model.discountOptions as any) || []) as any;
     (this.model.discountOptions as any[]).forEach((d:any) => d.eligibleNamesText = (d.eligibleNames || []).join(', '));
+    this.model.adminPin = '';
     this.editMode = true;
     this.showAdminPin = false;
     window.scrollTo({top:0, behavior:'smooth'});

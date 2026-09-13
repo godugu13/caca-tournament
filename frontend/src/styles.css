@@ -2688,5 +2688,4 @@ h1, h2, h3,
   }
 }
 
-/* Step 29.31D */
-.dashboard-edit-link { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+.dashboard-edit-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;}

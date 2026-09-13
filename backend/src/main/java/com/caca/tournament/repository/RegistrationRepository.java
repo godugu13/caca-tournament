@@ -16,6 +16,4 @@ public interface RegistrationRepository extends MongoRepository<Registration, St
 
     // Global lookup across all tournaments. This is intentionally NOT filtered by tournamentId.
     Optional<Registration> findFirstByEmailIgnoreCase(String email);
-
-    void deleteByTournamentId(String tournamentId);
 }

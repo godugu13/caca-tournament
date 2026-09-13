@@ -119,8 +119,8 @@ export class DashboardComponent implements OnInit {
   constructor(private api: ApiService, private admin: AdminAccessService) {}
 
   ngOnInit(): void {
-    this.loadEditableTournaments();
     this.load();
+    this.loadEditableTournaments();
   }
   isSuperAdmin(): boolean { return this.admin.isSuperAdmin(); }
   canEditTournament(t: Tournament): boolean {

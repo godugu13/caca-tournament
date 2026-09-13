@@ -2145,25 +2145,18 @@ No scoring behavior or tournament logic was changed.
 No SRR generation, scoring, standings, or knockout logic was changed.
 
 
-## Step 29.31D - Admin Edit Tournament + Soft Delete
+## Step 29.31F - Stable Dashboard + Full Admin Tournament Edit + Soft Delete
 
-### Edit Tournament
-- Logged-in tournament admins now see **Edit Tournament** from Dashboard for tournaments owned by their Admin PIN.
-- Super Admin can edit any active tournament.
-- Dashboard Edit opens `/tournaments` with that exact tournament loaded into Edit mode.
-- The Manage Tournament table keeps its Edit action.
+This step is rebuilt from the stable Step 29.31C baseline.
 
-### Soft delete policy
-- Tournament removal is now a **soft delete**.
-- Removing a tournament marks it deleted and hides it from active/public/admin tournament lists.
-- Registrations, matches, scores, standings history and audit data are preserved.
-- Player/registration removal remains soft delete.
-- Generated-round removal is now soft delete too: selected/current/future match records are marked deleted instead of being physically removed.
-- All active match reads ignore soft-deleted match records, so admins can regenerate removed rounds while historical records remain in MongoDB.
-
-This step is based on Step 29.31C and preserves the SRR-start gating for Tournament Day Live.
-
-
-## Step 29.31E - Angular model compile fix
-- Removed duplicate Tournament `recordStatus`, `deletedAt`, and `deletedBy` declarations introduced in 29.31D.
-- No functional behavior changed from 29.31D.
+- Restores the Step 29.31C Dashboard retrieval/display behavior for Current/Upcoming and Completed tournaments.
+- Logged-in tournament owners see **Edit Tournament** on Dashboard for their tournaments.
+- Super Admin sees **Edit Tournament** for every active tournament.
+- Dashboard Edit opens the Tournaments page directly in edit mode for that tournament.
+- Admin can edit tournament name, formats, dates/times, fee, venue/address, participant count, SRR/KO counts, description, flyer URL, YouTube Live URL, Team settings, and all discount options.
+- Edit authorization uses the authenticated Admin session PIN as a separate request parameter. The tournament ownership PIN is not exposed or overwritten during normal editing.
+- Tournament Admin PIN remains write-only in API responses.
+- Tournament Remove is soft delete; tournament-related records are preserved.
+- Generated-round removal is soft delete; deleted match records remain in MongoDB but all normal scoring/generation/standings reads use active matches only.
+- Existing registration/player removal remains soft delete.
+- Tournament Day Live behavior from Step 29.31C is preserved: Live appears only after SRR has started and a live URL exists.

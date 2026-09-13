@@ -88,9 +88,6 @@ export interface Match {
   player2BoardScores?: number[];
   scoreFinalized?: boolean;
   status?: string;
-  recordStatus?: string;
-  deletedAt?: string;
-  deletedBy?: string;
   winnerId?: string;
   discountOptions?: DiscountOption[];
 }

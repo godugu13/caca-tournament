@@ -32,7 +32,6 @@ import { ApiService } from './services/api.service';
           <a routerLink="/gameday">Game Day</a>
           <a routerLink="/scores">Scores</a>
           <a routerLink="/audit-history">Audit History</a>
-          <a routerLink="/deployment-settings">Deployment</a>
           <button type="button" class="nav-btn" (click)="logout()">Admin Logout</button>
         </ng-container>
         <a *ngIf="!isAdmin()" routerLink="/admin-login">Admin Login</a>

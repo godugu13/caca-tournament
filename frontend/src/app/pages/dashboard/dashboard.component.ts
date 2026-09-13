@@ -11,6 +11,10 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
   imports: [RouterLink, NgFor, NgIf, DatePipe],
   template: `
 <h2>Dashboard</h2>
+<div class="card" *ngIf="dashboardError">
+  <b>Unable to load tournament data.</b>
+  <span class="muted"> {{dashboardError}}</span>
+</div>
 
 <div class="dashboard-grid player-dashboard-grid">
   <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b><span>Register for an upcoming tournament.</span></a>
@@ -27,7 +31,6 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
     <a routerLink="/gameday">Game Day</a>
     <a routerLink="/scores">Scores</a>
     <a routerLink="/audit-history">Audit History</a>
-    <a routerLink="/deployment-settings">Deployment</a>
   </div>
 </section>
 
@@ -115,6 +118,7 @@ export class DashboardComponent implements OnInit {
   playersOpen: {[tournamentId: string]: boolean} = {};
   playersLoading: {[tournamentId: string]: boolean} = {};
   editableTournamentIds = new Set<string>();
+  dashboardError = '';
 
   constructor(private api: ApiService, private admin: AdminAccessService) {}
 
@@ -136,9 +140,18 @@ export class DashboardComponent implements OnInit {
   }
 
   load(): void {
-    this.api.dashboardTournaments().subscribe(tournaments => {
-      this.tournaments = tournaments || [];
-      this.splitTournaments();
+    this.dashboardError = '';
+    this.api.dashboardTournaments().subscribe({
+      next: tournaments => {
+        this.tournaments = tournaments || [];
+        this.splitTournaments();
+      },
+      error: err => {
+        this.tournaments = [];
+        this.currentTournaments = [];
+        this.completedTournaments = [];
+        this.dashboardError = err?.error?.message || err?.message || 'Please confirm the backend is connected to the production MongoDB database.';
+      }
     });
   }
 

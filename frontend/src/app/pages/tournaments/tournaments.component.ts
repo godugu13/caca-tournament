@@ -160,11 +160,11 @@ import { Tournament, Registration } from '../../models/models';
 </section>
 
 <h3>Manage Tournament</h3>
-<p class="muted">You are viewing tournaments for your current Admin PIN only. Super Admin can view all tournaments.</p>
+<p class="muted">Super Admin can view all OPEN, COMPLETED, hidden, and soft-removed tournaments. Tournament admins see tournaments owned by their Admin PIN.</p>
 <div class="table-scroll manage-tournament-scroll">
 <table>
   <tr>
-    <th>Name</th><th>Formats</th><th>Date</th><th>Fee</th><th>Address</th><th>SRR</th><th>KO</th><th>Status</th><th *ngIf="isSuperAdmin()">Hidden</th><th>Action</th>
+    <th>Name</th><th>Formats</th><th>Date</th><th>Fee</th><th>Address</th><th>SRR</th><th>KO</th><th>Status</th><th *ngIf="isSuperAdmin()">Record</th><th *ngIf="isSuperAdmin()">Hidden</th><th>Action</th>
   </tr>
   <tr *ngFor="let t of tournaments">
     <td>{{t.name}}</td>
@@ -175,14 +175,16 @@ import { Tournament, Registration } from '../../models/models';
     <td>{{t.srrRounds}}</td>
     <td>{{t.knockoutRounds}}</td>
     <td>{{t.status}}</td>
+    <td *ngIf="isSuperAdmin()">{{isRemoved(t) ? 'REMOVED' : 'ACTIVE'}}</td>
     <td *ngIf="isSuperAdmin()">{{t.hiddenFromDashboard ? 'Yes' : 'No'}}</td>
     <td>
-      <button type="button" class="secondary small" (click)="viewRegisteredPlayers(t)">View Players</button>
-      <button type="button" class="secondary small" (click)="editTournament(t)">Edit</button>
-      <button type="button" class="black-btn small" *ngIf="isSuperAdmin()" (click)="toggleDashboardVisibility(t)">{{t.hiddenFromDashboard ? 'Show Publicly' : 'Hide Publicly'}}</button>
-      <button type="button" class="yellow-btn small" *ngIf="(t.status || 'OPEN') !== 'COMPLETED'" (click)="completeTournament(t)">Complete Tournament</button>
-      <button type="button" class="secondary small" *ngIf="t.status === 'COMPLETED'" (click)="reopenTournament(t)">Reopen</button>
-      <button type="button" class="danger small" (click)="askDelete(t)">Remove</button>
+      <button type="button" class="secondary small" *ngIf="!isRemoved(t)" (click)="viewRegisteredPlayers(t)">View Players</button>
+      <button type="button" class="secondary small" *ngIf="!isRemoved(t)" (click)="editTournament(t)">Edit</button>
+      <button type="button" class="black-btn small" *ngIf="isSuperAdmin() && !isRemoved(t)" (click)="toggleDashboardVisibility(t)">{{t.hiddenFromDashboard ? 'Show Publicly' : 'Hide Publicly'}}</button>
+      <button type="button" class="yellow-btn small" *ngIf="!isRemoved(t) && (t.status || 'OPEN') !== 'COMPLETED'" (click)="completeTournament(t)">Complete Tournament</button>
+      <button type="button" class="secondary small" *ngIf="!isRemoved(t) && t.status === 'COMPLETED'" (click)="reopenTournament(t)">Reopen</button>
+      <button type="button" class="danger small" *ngIf="!isRemoved(t)" (click)="askDelete(t)">Remove</button>
+      <button type="button" class="secondary small" *ngIf="isSuperAdmin() && isRemoved(t)" (click)="restoreTournament(t)">Restore</button>
     </td>
   </tr>
 </table>
@@ -243,9 +245,15 @@ export class TournamentsComponent implements OnInit {
 
   ngOnInit(){ this.load(); }
   load(){
-    this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x => {
-      this.tournaments = x || [];
-      this.openRequestedTournamentForEdit();
+    this.api.manageTournaments(this.admin.currentPin()).subscribe({
+      next: x => {
+        this.tournaments = x || [];
+        this.openRequestedTournamentForEdit();
+      },
+      error: err => {
+        this.tournaments = [];
+        alert(this.displayError(err));
+      }
     });
   }
   private openRequestedTournamentForEdit(): void {
@@ -254,6 +262,15 @@ export class TournamentsComponent implements OnInit {
     const tournament = this.tournaments.find(t => t.id === requestedId);
     if (tournament) this.editTournament(tournament);
   }
+  isRemoved(t:Tournament): boolean { return (t.recordStatus || '').toUpperCase() === 'D'; }
+  restoreTournament(t:Tournament){
+    if(!t.id || !this.isSuperAdmin()) return;
+    this.api.restoreTournament(t.id, this.admin.currentPin()).subscribe({
+      next: () => this.load(),
+      error: err => alert(this.displayError(err))
+    });
+  }
+
   emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any, tournamentStartTime:'09:00', tournamentEndTime:'19:00'}; }
   defaultDiscountOptions(){
     return [

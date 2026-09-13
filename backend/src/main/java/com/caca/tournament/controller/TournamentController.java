@@ -40,6 +40,25 @@ public class TournamentController {
     }
 
 
+    /**
+     * Administrative tournament inventory.
+     * Super Admin can see every tournament, including soft-deleted records, so an
+     * accidentally removed tournament can be restored. Organizer admins see their
+     * own tournament records.
+     */
+    @GetMapping("/manage")
+    public ResponseEntity<?> manage(@RequestParam(defaultValue = "") String pin) {
+        String normalized = normalizePin(pin);
+        if (normalized.isBlank()) {
+            return ResponseEntity.status(403).body(Map.of("message", "Admin PIN required"));
+        }
+        if (isSuperAdminPin(normalized)) {
+            return ResponseEntity.ok(repository.findAll());
+        }
+        return ResponseEntity.ok(repository.findByAdminPin(normalized));
+    }
+
+
 
     @GetMapping("/dashboard")
     public List<DashboardTournament> dashboardTournaments() {
@@ -47,13 +66,21 @@ public class TournamentController {
                 .filter(this::isActiveTournament)
                 .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
                 .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
-                .map(tournament -> {
-            List<Match> tournamentMatches = matchRepository.findActiveByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
+                .map(this::toDashboardTournamentSafe)
+                .toList();
+    }
+
+    private DashboardTournament toDashboardTournamentSafe(Tournament tournament) {
+        try {
+            List<Match> tournamentMatches = matchRepository
+                    .findActiveByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
+
             Optional<Match> finalWinner = tournamentMatches.stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
                     .filter(m -> Boolean.TRUE.equals(m.getScoreFinalized()))
                     .filter(m -> m.getWinnerId() != null && !m.getWinnerId().isBlank())
                     .findFirst();
+
             boolean srrStarted = tournamentMatches.stream()
                     .anyMatch(m -> "SRR".equalsIgnoreCase(m.getRoundType()));
 
@@ -64,7 +91,17 @@ public class TournamentController {
                     finalWinner.map(Match::getFormat).orElse(null),
                     srrStarted
             );
-        }).toList();
+        } catch (Exception ignored) {
+            // Older tournament/match data must never prevent the whole dashboard
+            // from loading. Tournament status still determines completed/open.
+            return new DashboardTournament(
+                    tournament,
+                    "COMPLETED".equalsIgnoreCase(tournament.getStatus()),
+                    null,
+                    null,
+                    false
+            );
+        }
     }
 
     private String winnerName(Match match) {
@@ -159,6 +196,20 @@ public class TournamentController {
         }
         Tournament tournament = repository.findById(id).filter(this::isActiveTournament).orElseThrow();
         tournament.setHiddenFromDashboard(hidden);
+        return ResponseEntity.ok(repository.save(tournament));
+    }
+
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restore(@PathVariable String id,
+                                     @RequestParam(defaultValue = "") String pin) {
+        if (!isSuperAdminPin(pin)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN required"));
+        }
+        Tournament tournament = repository.findById(id).orElseThrow();
+        tournament.setRecordStatus("ACTIVE");
+        tournament.setDeletedAt(null);
+        tournament.setDeletedBy(null);
+        tournament.setHiddenFromDashboard(false);
         return ResponseEntity.ok(repository.save(tournament));
     }
 

@@ -2160,3 +2160,17 @@ This step is rebuilt from the stable Step 29.31C baseline.
 - Generated-round removal is soft delete; deleted match records remain in MongoDB but all normal scoring/generation/standings reads use active matches only.
 - Existing registration/player removal remains soft delete.
 - Tournament Day Live behavior from Step 29.31C is preserved: Live appears only after SRR has started and a live URL exists.
+
+
+## Step 29.31G - Dashboard & Tournament Management Recovery
+
+- Reworked tournament retrieval so one old/corrupt match record cannot prevent all Dashboard tournaments from loading.
+- Added a dedicated Admin management endpoint independent of public Dashboard visibility.
+- Super Admin Manage Tournaments now shows OPEN, COMPLETED, hidden, and soft-removed tournament records.
+- Soft-removed tournaments display as REMOVED and can be restored by Super Admin.
+- Normal tournament admins still see tournaments owned by their Admin PIN.
+- Dashboard now displays a visible backend/database loading error instead of silently showing zero tournaments when the API fails.
+- Existing full tournament editing from Step 29.31F remains: name, formats, dates/times, fee, venue, SRR/KO, description, Live URL, team fields, and discounts.
+- Removed the Deployment link from Header and Super Admin Dashboard tools. The underlying deployment configuration code remains untouched for compatibility.
+- Tournament and generated-round deletion remain soft delete only.
+- Tournament Day Live still appears only after SRR starts and a Live URL is configured.

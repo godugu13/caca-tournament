@@ -11,14 +11,16 @@ export class ApiService {
   //   http://localhost:4200  -> http://localhost:8080/api
   //   http://192.x.x.x:4200  -> http://192.x.x.x:8080/api
   // Production:
-  //   Set localStorage.cacaApiBaseUrl in browser if frontend/backend are on separate domains,
-  //   or replace this with environment-based config in Step 29.
+  //   Uses environment.apiBaseUrl / the configured Render backend.
+  //   The old Deployment Settings screen is no longer part of normal navigation.
   private baseUrl = '';
 
   constructor(private http: HttpClient, private config: AppConfigService) { this.baseUrl = this.config.apiBaseUrl(); }
   ping(): Observable<any> { return this.http.get<any>(`${this.baseUrl}/ping`); }
   tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments`); }
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
+  manageTournaments(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/manage?pin=${encodeURIComponent(pin || '')}`); }
+  restoreTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/restore?pin=${encodeURIComponent(pin || '')}`, {}); }
   dashboardTournaments(): Observable<DashboardTournament[]> { return this.http.get<DashboardTournament[]>(`${this.baseUrl}/tournaments/dashboard`); }
   createTournament(t: Tournament): Observable<Tournament> { return this.http.post<Tournament>(`${this.baseUrl}/tournaments`, t); }
   updateTournament(id: string, t: Tournament, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${id}?pin=${encodeURIComponent(pin || '')}`, t); }

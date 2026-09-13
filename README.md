@@ -2174,3 +2174,15 @@ This step is rebuilt from the stable Step 29.31C baseline.
 - Removed the Deployment link from Header and Super Admin Dashboard tools. The underlying deployment configuration code remains untouched for compatibility.
 - Tournament and generated-round deletion remain soft delete only.
 - Tournament Day Live still appears only after SRR starts and a Live URL is configured.
+
+
+## Step 29.31H - Fast Tournament Catalog + Radio Tournament Selection
+
+- Added `/api/tournaments/catalog`, a lightweight tournament-only endpoint with no match-history lookup.
+- Dashboard now renders Current/Upcoming and Completed tournaments from the lightweight tournament catalog first.
+- Match/result/live metadata loads only as optional secondary enrichment; it can no longer block or blank the tournament lists.
+- Register For replaces the tournament dropdown with a visible single-select **radio-card list**. Radio buttons are used instead of checkboxes because registration allows exactly one tournament at a time.
+- Tournament selector includes explicit Loading / Error / No open tournaments states.
+- Public registration uses the fast catalog. Logged-in admins use their Admin-PIN tournament list.
+- Existing Super Admin Manage Tournaments endpoint, full Edit Tournament support, Restore, soft delete, and Tournament Day Live gating remain unchanged.
+- Deployment navigation remains removed.

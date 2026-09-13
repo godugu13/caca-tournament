@@ -141,18 +141,50 @@ export class DashboardComponent implements OnInit {
 
   load(): void {
     this.dashboardError = '';
-    this.api.dashboardTournaments().subscribe({
+
+    // Fast path: Dashboard visibility comes directly from the tournament collection.
+    // Match/result metadata is optional enrichment and must never block the tournament list.
+    this.api.tournaments().subscribe({
       next: tournaments => {
-        this.tournaments = tournaments || [];
+        const visible = (tournaments || []).filter(t => !t.hiddenFromDashboard);
+        this.tournaments = visible.map(t => ({
+          tournament: t,
+          championDeclared: (t.status || '').toUpperCase() === 'COMPLETED',
+          championName: undefined,
+          championFormat: undefined,
+          srrStarted: false
+        }));
         this.splitTournaments();
+
+        // Secondary enrichment only. If it is slow or fails, the lists above remain visible.
+        this.api.dashboardTournaments().subscribe({
+          next: metadata => this.mergeDashboardMetadata(metadata || []),
+          error: () => {}
+        });
       },
       error: err => {
         this.tournaments = [];
         this.currentTournaments = [];
         this.completedTournaments = [];
-        this.dashboardError = err?.error?.message || err?.message || 'Please confirm the backend is connected to the production MongoDB database.';
+        this.dashboardError = err?.error?.message || err?.message || 'Unable to load tournaments from the backend.';
       }
     });
+  }
+
+  private mergeDashboardMetadata(metadata: DashboardTournament[]): void {
+    if (!metadata.length) return;
+    const byId = new Map<string, DashboardTournament>();
+    metadata.forEach(item => {
+      const id = item?.tournament?.id || '';
+      if (id) byId.set(id, item);
+    });
+
+    this.tournaments = this.tournaments.map(item => {
+      const id = item.tournament.id || '';
+      const enriched = byId.get(id);
+      return enriched ? {...item, ...enriched, tournament: {...item.tournament, ...enriched.tournament}} : item;
+    });
+    this.splitTournaments();
   }
 
   toggleRegisteredPlayers(t: Tournament): void {

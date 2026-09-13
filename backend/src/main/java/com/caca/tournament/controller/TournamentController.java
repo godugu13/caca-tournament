@@ -32,6 +32,15 @@ public class TournamentController {
         return repository.findAll().stream().filter(this::isActiveTournament).toList();
     }
 
+    @GetMapping("/catalog")
+    public List<Tournament> catalog() {
+        return repository.findAll().stream()
+                .filter(this::isActiveTournament)
+                .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
+                .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
+                .toList();
+    }
+
     @GetMapping("/by-pin")
     public List<Tournament> byPin(@RequestParam(defaultValue = "") String pin) {
         if (isSuperAdminPin(pin)) return repository.findAll().stream().filter(this::isActiveTournament).toList();

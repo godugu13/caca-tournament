@@ -33,12 +33,36 @@ import { Tournament, Registration } from '../../models/models';
     </div>
 
     <div class="form-grid">
-      <div class="field-group">
+      <div class="field-group tournament-picker-wrap">
         <label>Tournament <span class="required">*</span></label>
-        <select [(ngModel)]="model.tournamentId" (change)="onTournamentChange()">
-          <option value="">Select Tournament</option>
-          <option *ngFor="let t of tournaments" [value]="t.id">{{t.name}}</option>
-        </select>
+
+        <div class="tournament-loading" *ngIf="tournamentsLoading">
+          Loading tournaments…
+        </div>
+
+        <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">
+          {{tournamentsLoadError}}
+        </div>
+
+        <div class="tournament-radio-list" *ngIf="!tournamentsLoading && tournaments.length">
+          <label class="tournament-radio-card"
+                 *ngFor="let t of tournaments"
+                 [class.selected]="model.tournamentId === t.id">
+            <input type="radio"
+                   name="registrationTournament"
+                   [value]="t.id"
+                   [(ngModel)]="model.tournamentId"
+                   (change)="onTournamentChange()">
+            <span class="tournament-radio-copy">
+              <b>{{t.name}}</b>
+              <small>{{t.tournamentDate || 'Date TBD'}} • {{(t.formats || []).join(', ') || t.tournamentType || 'Singles'}}</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="muted" *ngIf="!tournamentsLoading && !tournamentsLoadError && tournaments.length === 0">
+          No open tournaments are currently available for registration.
+        </div>
       </div>
 
       <div class="field-group format-checkbox-group"><label>Format(s) <span class="required">*</span></label><label class="inline-check" *ngFor="let f of availableFormats"><input type="checkbox" [checked]="selectedFormats.includes(f)" (change)="toggleRegistrationFormat(f,$event)"> {{f}}</label></div>
@@ -210,6 +234,8 @@ export class RegistrationsComponent implements OnInit {
   registrationErrorMessage = '';
   rosterUploadPin = '';
   rosterUploadInProgress = false;
+  tournamentsLoading = true;
+  tournamentsLoadError = '';
 
   model: Registration = {
     tournamentId: '',
@@ -234,23 +260,48 @@ export class RegistrationsComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.api.tournaments().subscribe(tournaments => {
-      this.tournaments = (tournaments || []).filter(t => {
-        const completed = (t.status || '').toUpperCase() === 'COMPLETED';
-        const hidden = !!t.hiddenFromDashboard;
-        return !completed && (this.isAdmin() || !hidden);
-      });
-      const queryTournamentId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
-      const queryFormat = this.route.snapshot.queryParamMap.get('format') || '';
-      if (queryTournamentId && this.tournaments.some(t => t.id === queryTournamentId)) {
-        this.model.tournamentId = queryTournamentId;
-        this.onTournamentChange();
-        if (queryFormat) {
-          this.model.format = queryFormat;
-          this.onFormatChange();
+    this.tournamentsLoading = true;
+    this.tournamentsLoadError = '';
+
+    const tournamentRequest = this.isAdmin()
+      ? this.api.tournamentsByPin(this.adminAccess.currentPin())
+      : this.api.tournaments();
+
+    tournamentRequest.subscribe({
+      next: tournaments => {
+        this.tournaments = (tournaments || [])
+          .filter(t => {
+            const completed = (t.status || '').toUpperCase() === 'COMPLETED';
+            const hidden = !!t.hiddenFromDashboard;
+            return !completed && (this.isAdmin() || !hidden);
+          })
+          .sort((a,b) => this.tournamentSortValue(a) - this.tournamentSortValue(b));
+
+        this.tournamentsLoading = false;
+
+        const queryTournamentId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
+        const queryFormat = this.route.snapshot.queryParamMap.get('format') || '';
+        if (queryTournamentId && this.tournaments.some(t => t.id === queryTournamentId)) {
+          this.model.tournamentId = queryTournamentId;
+          this.onTournamentChange();
+          if (queryFormat) {
+            this.model.format = queryFormat;
+            this.onFormatChange();
+          }
         }
+      },
+      error: err => {
+        this.tournaments = [];
+        this.tournamentsLoading = false;
+        this.tournamentsLoadError = err?.error?.message || err?.message || 'Unable to load tournaments. Please try again.';
       }
     });
+  }
+
+  private tournamentSortValue(t: Tournament): number {
+    if (!t.tournamentDate) return Number.MAX_SAFE_INTEGER;
+    const parsed = new Date(`${t.tournamentDate}T00:00:00`).getTime();
+    return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
   }
 
 

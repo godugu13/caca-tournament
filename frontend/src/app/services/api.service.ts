@@ -17,7 +17,7 @@ export class ApiService {
 
   constructor(private http: HttpClient, private config: AppConfigService) { this.baseUrl = this.config.apiBaseUrl(); }
   ping(): Observable<any> { return this.http.get<any>(`${this.baseUrl}/ping`); }
-  tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments`); }
+  tournaments(): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/catalog`); }
   tournamentsByPin(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/by-pin?pin=${encodeURIComponent(pin || '')}`); }
   manageTournaments(pin: string): Observable<Tournament[]> { return this.http.get<Tournament[]>(`${this.baseUrl}/tournaments/manage?pin=${encodeURIComponent(pin || '')}`); }
   restoreTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/restore?pin=${encodeURIComponent(pin || '')}`, {}); }

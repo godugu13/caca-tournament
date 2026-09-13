@@ -41,19 +41,25 @@ public class TournamentController {
 
     @GetMapping("/dashboard")
     public List<DashboardTournament> dashboardTournaments() {
-        return repository.findAll().stream().sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate())).map(tournament -> {
-            Optional<Match> finalWinner = matchRepository.findByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId())
-                    .stream()
+        return repository.findAll().stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getHiddenFromDashboard()))
+                .sorted(Comparator.comparing(t -> t.getTournamentDate() == null ? java.time.LocalDate.MAX : t.getTournamentDate()))
+                .map(tournament -> {
+            List<Match> tournamentMatches = matchRepository.findByTournamentIdOrderByRoundNumberAscBoardNumberAsc(tournament.getId());
+            Optional<Match> finalWinner = tournamentMatches.stream()
                     .filter(m -> "FINALS".equalsIgnoreCase(m.getRoundType()))
                     .filter(m -> Boolean.TRUE.equals(m.getScoreFinalized()))
                     .filter(m -> m.getWinnerId() != null && !m.getWinnerId().isBlank())
                     .findFirst();
+            boolean srrStarted = tournamentMatches.stream()
+                    .anyMatch(m -> "SRR".equalsIgnoreCase(m.getRoundType()));
 
             return new DashboardTournament(
                     tournament,
                     finalWinner.isPresent() || "COMPLETED".equalsIgnoreCase(tournament.getStatus()),
                     finalWinner.map(this::winnerName).orElse(null),
-                    finalWinner.map(Match::getFormat).orElse(null)
+                    finalWinner.map(Match::getFormat).orElse(null),
+                    srrStarted
             );
         }).toList();
     }
@@ -101,6 +107,7 @@ public class TournamentController {
         existing.setKnockoutRounds(request.getKnockoutRounds());
         existing.setDescription(request.getDescription());
         existing.setFlyerUrl(request.getFlyerUrl());
+        existing.setLiveUrl(request.getLiveUrl());
         existing.setFormats(request.getFormats());
         if (request.getAdminPin() != null && !request.getAdminPin().isBlank()) {
             String requestedPin = normalizePin(request.getAdminPin());
@@ -129,6 +136,20 @@ public class TournamentController {
         Tournament tournament = repository.findById(id).orElseThrow();
         if (!isAdminPin(pin, tournament)) return ResponseEntity.status(403).body("Invalid admin PIN");
         tournament.setStatus("OPEN"); tournament.setCompletedAt(null);
+        return ResponseEntity.ok(repository.save(tournament));
+    }
+
+
+    @PutMapping("/{id}/dashboard-visibility")
+    public ResponseEntity<?> setDashboardVisibility(
+            @PathVariable String id,
+            @RequestParam boolean hidden,
+            @RequestParam(defaultValue = "") String pin) {
+        if (!isSuperAdminPin(pin)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN required"));
+        }
+        Tournament tournament = repository.findById(id).orElseThrow();
+        tournament.setHiddenFromDashboard(hidden);
         return ResponseEntity.ok(repository.save(tournament));
     }
 

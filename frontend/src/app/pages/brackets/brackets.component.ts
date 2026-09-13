@@ -98,10 +98,10 @@ import { Match, Tournament } from '../../models/models';
     <div class="match-grid">
       <div class="match-card public-match-card" *ngFor="let m of selectedRoundMatches()">
         <b>{{ m.status === 'BYE' ? 'BYE' : 'Venue #' + m.boardNumber }}</b>
-        <p>Rank {{m.player1Rank || '-'}}: {{m.player1Name}} <b *ngIf="m.scoreFinalized">{{m.player1Score || 0}}</b></p>
+        <p>{{showRankForMatch(m) ? ('Rank ' + (m.player1Rank || '-') + ': ') : ''}}{{m.player1Name}} <b *ngIf="m.scoreFinalized">{{m.player1Score || 0}}</b></p>
         <ng-container *ngIf="m.status !== 'BYE'; else byeBlock">
           <p>vs</p>
-          <p>Rank {{m.player2Rank || '-'}}: {{m.player2Name}} <b *ngIf="m.scoreFinalized">{{m.player2Score || 0}}</b></p>
+          <p>{{showRankForMatch(m) ? ('Rank ' + (m.player2Rank || '-') + ': ') : ''}}{{m.player2Name}} <b *ngIf="m.scoreFinalized">{{m.player2Score || 0}}</b></p>
         </ng-container>
         <ng-template #byeBlock><p class="ok">BYE - advances automatically</p></ng-template>
         <small *ngIf="m.scoreFinalized && winnerName(m)">Winner: {{winnerName(m)}}</small>
@@ -127,9 +127,10 @@ export class BracketsComponent implements OnInit {
     this.tournamentId = this.route.snapshot.paramMap.get('tournamentId') || this.route.snapshot.queryParamMap.get('tournamentId') || '';
     this.format = this.route.snapshot.paramMap.get('format') || this.route.snapshot.queryParamMap.get('format') || 'Singles';
 
-    this.api.tournaments().subscribe(tournaments => {
-      this.tournaments = tournaments || [];
+    this.api.dashboardTournaments().subscribe(items => {
+      this.tournaments = (items || []).map(i => i.tournament);
       if (!this.tournamentId && this.tournaments.length) this.tournamentId = this.tournaments[0].id || '';
+      if (this.tournamentId && !this.tournaments.some(t => t.id === this.tournamentId)) this.tournamentId = '';
       this.syncTournament();
       if (this.tournamentId) this.load();
     });
@@ -228,4 +229,10 @@ export class BracketsComponent implements OnInit {
   scoreOrDash(score: any, finalized: any) {
     return finalized ? (score ?? 0) : '-';
   }
+  showRankForMatch(m: Match): boolean {
+    const type = (m?.roundType || 'SRR').toUpperCase();
+    return type !== 'SRR' || Number(m?.roundNumber || 0) > 1;
+  }
+
+
 }

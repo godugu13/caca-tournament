@@ -56,11 +56,6 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
       </div>
     </header>
 
-    <nav class="bracket-tabs">
-      <span class="active-tab">🏆 Knockout Bracket</span>
-      <span>📊 Standings</span>
-      <span>↩ History</span>
-    </nav>
 
     <div class="status-strip">
       <div>
@@ -220,9 +215,9 @@ type BracketGroup = { name: string; quarters: Match[]; semis: Match[]; finals: M
   <p class="ok" *ngIf="roundActionMessage">{{roundActionMessage}}</p><p class="warning" *ngIf="roundActionError">{{roundActionError}}</p>
 </div>
 
-<div *ngIf="standings.length > 0" class="card standings-card summary-standings-card">
+<div *ngIf="isAdminUser() && standings.length > 0" class="card standings-card summary-standings-card">
   <button *ngIf="isAdminUser()" type="button" class="section-toggle" (click)="adminStandingsOpen = !adminStandingsOpen">{{adminStandingsOpen ? '▲ Close Admin Standings Editor' : '▼ Open Admin Standings Editor'}}</button>
-  <div *ngIf="!isAdminUser() || adminStandingsOpen">
+  <div *ngIf="adminStandingsOpen">
   
   <p class="warning" *ngIf="tournamentNotConducted()">Tournament is not yet conducted. Standings will appear after at least one round is generated/scored.</p>
 <table *ngIf="!tournamentNotConducted()">
@@ -274,7 +269,8 @@ export class StandingsComponent implements OnInit {
     this.format = this.route.snapshot.paramMap.get('format') || localStorage.getItem('activeFormat') || 'Singles';
 
     this.api.tournaments().subscribe(tournaments => {
-      this.tournaments = tournaments || [];
+      this.tournaments = (tournaments || []).filter(t => this.isAdminUser() || !t.hiddenFromDashboard);
+      if (this.tournamentId && !this.tournaments.some(t => t.id === this.tournamentId) && !this.isAdminUser()) this.tournamentId = '';
       this.setTournamentName();
       if (this.tournamentId) this.load();
     });

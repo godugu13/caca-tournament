@@ -9,11 +9,13 @@ public class DashboardTournament {
     private boolean championDeclared;
     private String championName;
     private String championFormat;
+    private boolean srrStarted;
 
-    public DashboardTournament(Tournament tournament, boolean championDeclared, String championName, String championFormat) {
+    public DashboardTournament(Tournament tournament, boolean championDeclared, String championName, String championFormat, boolean srrStarted) {
         this.tournament = tournament;
         this.championDeclared = championDeclared;
         this.championName = championName;
         this.championFormat = championFormat;
+        this.srrStarted = srrStarted;
     }
 }

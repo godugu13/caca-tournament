@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AppConfigService } from './app-config.service';
 import { Observable } from 'rxjs';
-import { Match, Registration, Standing, Tournament, Member, PlayerScoreLookupResponse, DashboardTournament } from '../models/models';
+import { Match, Registration, Standing, Tournament, Member, PlayerScoreLookupResponse, DashboardTournament, PublicRegistration } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -25,7 +25,9 @@ export class ApiService {
   deleteTournament(tournamentId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/tournaments/${tournamentId}?pin=${encodeURIComponent(pin)}`); }
   finalizeTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/finalize?pin=${encodeURIComponent(pin)}`, {}); }
   reopenTournament(tournamentId: string, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/reopen?pin=${encodeURIComponent(pin)}`, {}); }
+  setTournamentDashboardHidden(tournamentId: string, hidden: boolean, pin: string): Observable<Tournament> { return this.http.put<Tournament>(`${this.baseUrl}/tournaments/${tournamentId}/dashboard-visibility?hidden=${hidden}&pin=${encodeURIComponent(pin || '')}`, {}); }
   registrations(tournamentId: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}`); }
+  publicRegistrationNames(tournamentId: string): Observable<PublicRegistration[]> { return this.http.get<PublicRegistration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/public-names`); }
   registrationsByFormat(tournamentId: string, format: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/${format}`); }
   register(r: Registration): Observable<Registration> { return this.http.post<Registration>(`${this.baseUrl}/registrations`, r); }
   memberById(membershipId: string): Observable<Member> { return this.http.get<Member>(`${this.baseUrl}/members/${encodeURIComponent(membershipId)}`); }

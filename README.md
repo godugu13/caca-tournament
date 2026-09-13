@@ -2033,3 +2033,113 @@ Updated:
 - Round Details now focuses on SRR rounds only.
 
 No backend tournament logic changed.
+
+
+## Step 29.31 - Dashboard, Privacy, Live and UI Polish
+
+Built from stable Step 29.30.
+
+### Scoring
+- Score-board save button now uses a distinct green color so Save and Finalize are visually different.
+- SRR Round 1 matchups no longer display ranking numbers.
+- Rankings continue from later SRR rounds and knockout stages.
+
+### Dashboard
+- Current/upcoming tournaments are ordered with the next upcoming tournament first.
+- Clicking an upcoming tournament opens `Register For` with that tournament selected.
+- Dashboard can show registered player names for each upcoming tournament.
+- Public dashboard player lists contain names/partner/format only, never email, phone, fee or payment data.
+- Completed tournaments use cleaner result cards with Champion and `View Results`.
+- Super Admin gets a Dashboard `Super Admin Tools` section with direct links to tournament administration pages.
+
+### Registration privacy
+- Completed tournaments are removed from the Register For tournament list.
+- Tournaments hidden by Super Admin are removed from public registration.
+- Non-admin Players View shows only:
+  - Player name
+  - Format
+  - Partner where applicable
+- Contact, fee, payment, selection and remove controls are admin-only.
+- Added a backend public-registration endpoint that returns names/format/partner only, so public pages do not download email/phone data.
+
+### Tournament Day - Live
+- Added a public `Tournament Day - Live` header link/page.
+- Tournament creation/edit has an optional `Tournament Day Live URL`.
+- Organizers can paste the CACA YouTube/Facebook live URL for that tournament.
+- Dashboard shows a Live link whenever a tournament has a live URL configured.
+
+### Super Admin hide/show
+- Added persistent `hiddenFromDashboard`.
+- Only Super Admin can Hide Publicly / Show Publicly from Manage Tournament.
+- Hidden tournaments are excluded from:
+  - Dashboard
+  - Public Register For selector
+  - Public Brackets selector
+  - Public Standings selector
+- Admin management still has access.
+
+### Standings
+- Removed duplicate public standings summary display.
+- Public users see one SRR Round Details area plus the pictorial knockout bracket.
+- Admin standings adjustment/editor stays collapsed at the bottom.
+
+### App branding
+- Refreshed CACA 3.0™ application logo treatment with a compact C3 mark and Times New Roman branding.
+
+No tournament pairing/scoring engine rules were intentionally changed in this step.
+
+
+## Step 29.31A - Angular 22 Dependency Alignment
+
+This is the same Step 29.31 application functionality with frontend dependencies corrected for Angular 22.1.6.
+
+Frontend versions are pinned together:
+- Angular framework packages: 22.1.6
+- Angular CLI: 22.1.6
+- Angular build-angular: 22.1.6
+- Angular compiler-cli: 22.1.6
+- TypeScript: 6.0.3
+- RxJS: 7.8.2
+- zone.js: 0.16.2
+- tslib: 2.8.1
+
+The obsolete `defaultProject` key was removed from angular.json.
+
+IMPORTANT when replacing an older frontend on Windows:
+1. Delete the existing `node_modules` folder.
+2. Delete `package-lock.json` if one exists.
+3. Copy/extract the corrected frontend.
+4. Run `npm install`.
+5. Run `npm run build`.
+
+Do not use --force or --legacy-peer-deps for this upgrade.
+
+
+## Step 29.31B - Angular 22 Strict Template Fix
+
+Fixes the Angular 22 production build errors reported after Step 29.31A:
+
+- Scores page `[disabled]` bindings now coerce optional `scoreFinalized` to strict boolean with `!!`.
+- Board score inputs, Finalize button, BYE input and related save/finalize controls are Angular 22 strict-template compatible.
+- Removed two NG8107 optional-chain warnings:
+  - Player Score `match?.id` -> `match.id`
+  - Registration tournament player count uses the already-guarded selected tournament value.
+
+No scoring behavior or tournament logic was changed.
+
+
+## Step 29.31C - Tournament Day Live starts with SRR
+
+- `Tournament Day - Live` is hidden before tournament play starts.
+- The backend determines tournament start from generated SRR matches; creating a tournament or reaching its calendar date alone does not enable Live.
+- Once SRR Round 1 is generated, a configured Live link becomes visible.
+- Header `Tournament Day - Live` appears only when at least one active, public tournament has:
+  1. generated SRR matches, and
+  2. a configured Live URL.
+- Dashboard Live button follows the same rule.
+- Live page lists only tournaments whose SRR has started.
+- Admin Tournament setup/edit explicitly supports pasting a YouTube Live or YouTube video link.
+- The YouTube link can be entered before tournament day, but remains hidden from public Live UI until SRR starts.
+- Completed tournaments are not shown in Tournament Day Live.
+
+No SRR generation, scoring, standings, or knockout logic was changed.

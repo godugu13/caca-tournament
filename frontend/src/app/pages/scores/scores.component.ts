@@ -74,26 +74,26 @@ import { Match, Tournament } from '../../models/models';
 
       <div class="board-score-row" *ngFor="let board of visibleBoards(m)">
         <input class="score" type="number" inputmode="numeric" min="0" max="25"
-               [disabled]="m.scoreFinalized"
+               [disabled]="!!m.scoreFinalized"
                [(ngModel)]="m.player1BoardScores![board-1]"
                (ngModelChange)="scoreChanged(m, board, 1)">
 
         <div class="board-pill">#{{board}}</div>
 
         <input class="score" type="number" inputmode="numeric" min="0" max="25"
-               [disabled]="m.scoreFinalized"
+               [disabled]="!!m.scoreFinalized"
                [(ngModel)]="m.player2BoardScores![board-1]"
                (ngModelChange)="scoreChanged(m, board, 2)">
 
         <button type="button" class="icon-save" title="Save board score"
-                [disabled]="m.scoreFinalized || !dirtyKeyMap[boardKey(m, board)]"
+                [disabled]="!!m.scoreFinalized || !dirtyKeyMap[boardKey(m, board)]"
                 (click)="saveBoard($event, m, board)">💾</button>
       </div>
 
       <p class="warning" *ngIf="reached25(m) && !m.scoreFinalized">One team reached 25 points. You can finalize now.</p>
 
       <div class="score-actions finalize-row">
-        <button type="button" class="yellow-btn" [disabled]="m.scoreFinalized" (click)="finalize($event, m)">Finalize Score</button>
+        <button type="button" class="yellow-btn" [disabled]="!!m.scoreFinalized" (click)="finalize($event, m)">Finalize Score</button>
         <button type="button" class="secondary" *ngIf="m.scoreFinalized" (click)="reopen($event, m)">Edit</button>
       </div>
     </ng-container>
@@ -107,11 +107,11 @@ import { Match, Tournament } from '../../models/models';
         <b>{{m.player1Name}}</b>
         <span>BYE / Walkover Points</span>
         <input class="score" type="number" inputmode="numeric" min="0" max="25"
-               [disabled]="m.scoreFinalized"
+               [disabled]="!!m.scoreFinalized"
                [(ngModel)]="m.player1Score"
                (ngModelChange)="byeChanged(m)">
-        <button type="button" class="icon-save" title="Save BYE score" [disabled]="m.scoreFinalized || !byeDirtyMap[matchKey(m)]" (click)="saveBye($event, m, false)">💾</button>
-        <button type="button" class="yellow-btn" [disabled]="m.scoreFinalized" (click)="saveBye($event, m, true)">Finalize BYE Score</button>
+        <button type="button" class="icon-save" title="Save BYE score" [disabled]="!!m.scoreFinalized || !byeDirtyMap[matchKey(m)]" (click)="saveBye($event, m, false)">💾</button>
+        <button type="button" class="yellow-btn" [disabled]="!!m.scoreFinalized" (click)="saveBye($event, m, true)">Finalize BYE Score</button>
         <button type="button" class="secondary" *ngIf="m.scoreFinalized" (click)="reopen($event, m)">Edit</button>
       </div>
     </ng-template>

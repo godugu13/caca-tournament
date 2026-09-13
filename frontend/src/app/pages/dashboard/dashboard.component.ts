@@ -2,7 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
-import { Tournament, DashboardTournament } from '../../models/models';
+import { AdminAccessService } from '../../services/admin-access.service';
+import { Tournament, DashboardTournament, PublicRegistration } from '../../models/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -10,20 +11,31 @@ import { Tournament, DashboardTournament } from '../../models/models';
   imports: [RouterLink, NgFor, NgIf, DatePipe],
   template: `
 <h2>Dashboard</h2>
-<p class="muted">Welcome to CACA Inc. Tournament Management System. Players can view tournaments, register, enter scores, and view standings.</p>
 
 <div class="dashboard-grid player-dashboard-grid">
-  <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b><span>Register for Singles, Doubles, Mixed Doubles, or Team Event.</span></a>
-  <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b><span>Open your assigned board score card using registered phone number.</span></a>
+  <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b><span>Register for an upcoming tournament.</span></a>
+  <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b><span>Open your assigned score card.</span></a>
   <a class="dash-card black" routerLink="/brackets"><b>Brackets</b><span>View live and completed matchups.</span></a>
   <a class="dash-card ocean-light" routerLink="/standings"><b>Standings</b><span>View rankings and round results.</span></a>
+  <a *ngIf="hasStartedLiveTournament()" class="dash-card live-card" routerLink="/live"><b>🔴 Tournament Day - Live</b><span>Open CACA live tournament streams.</span></a>
 </div>
+
+<section class="card super-admin-dashboard-tools" *ngIf="isSuperAdmin()">
+  <h3>Super Admin Tools</h3>
+  <div class="dashboard-admin-links">
+    <a routerLink="/tournaments">Manage Tournaments</a>
+    <a routerLink="/gameday">Game Day</a>
+    <a routerLink="/scores">Scores</a>
+    <a routerLink="/audit-history">Audit History</a>
+    <a routerLink="/deployment-settings">Deployment</a>
+  </div>
+</section>
 
 <section class="card tournament-list-card">
   <div class="section-header">
     <div>
       <h3>Current / Upcoming Tournaments</h3>
-      <p class="muted">Tournaments remain here until Finals are completed and a champion is declared.</p>
+      <p class="muted">The next upcoming tournament is shown first.</p>
     </div>
     <span class="count-pill ocean-pill">{{currentTournaments.length}}</span>
   </div>
@@ -31,16 +43,38 @@ import { Tournament, DashboardTournament } from '../../models/models';
   <div *ngIf="currentTournaments.length === 0" class="empty-state">No current or upcoming tournaments found yet.</div>
 
   <div class="tournament-link-list" *ngIf="currentTournaments.length > 0">
-    <div class="tournament-row future" *ngFor="let item of currentTournaments">
+    <article class="tournament-row future dashboard-tournament-card" *ngFor="let item of currentTournaments">
       <img *ngIf="item.tournament.flyerUrl" class="dashboard-flyer" [src]="item.tournament.flyerUrl" alt="Tournament flyer">
-      <a [routerLink]="standingsLink(item.tournament)" class="tournament-main-link">
-        <div>
-          <b>{{item.tournament.name}}</b>
-          <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'No date added'}} • {{item.tournament.status || 'OPEN'}}</span>
+
+      <div class="dashboard-tournament-content">
+        <a [routerLink]="['/registrations']"
+           [queryParams]="{tournamentId:item.tournament.id, format:displayFormat(item.tournament)}"
+           class="tournament-main-link">
+          <div>
+            <b>{{item.tournament.name}}</b>
+            <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'Date TBD'}}</span>
+          </div>
+          <em>Register →</em>
+        </a>
+
+        <div class="dashboard-row-actions">
+          <button type="button" class="secondary small" (click)="toggleRegisteredPlayers(item.tournament)">
+            {{playersOpen[item.tournament.id || ''] ? 'Hide Players' : 'Registered Players'}}
+          </button>
+          <a *ngIf="item.srrStarted && item.tournament.liveUrl" class="live-link-small" [href]="item.tournament.liveUrl" target="_blank" rel="noopener">🔴 Live</a>
         </div>
-        <em>Open →</em>
-      </a>
-    </div>
+
+        <div class="dashboard-player-list" *ngIf="playersOpen[item.tournament.id || '']">
+          <span *ngIf="playersLoading[item.tournament.id || '']">Loading players…</span>
+          <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
+          <div *ngFor="let p of registeredPlayers[item.tournament.id || '']; let i=index">
+            {{i+1}}. <b>{{p.playerName}}</b>
+            <span *ngIf="p.partnerName"> / {{p.partnerName}}</span>
+            <small *ngIf="p.format"> • {{p.format}}</small>
+          </div>
+        </div>
+      </div>
+    </article>
   </div>
 </section>
 
@@ -48,23 +82,22 @@ import { Tournament, DashboardTournament } from '../../models/models';
   <div class="section-header">
     <div>
       <h3>Completed Tournaments</h3>
-      <p class="muted">Finals completed and champion declared. Click any tournament to view final standings.</p>
+      <p class="muted">Open a completed tournament to see final results and brackets.</p>
     </div>
     <span class="count-pill">{{completedTournaments.length}}</span>
   </div>
 
   <div *ngIf="completedTournaments.length === 0" class="empty-state">No completed tournaments found yet.</div>
 
-  <div class="tournament-link-list" *ngIf="completedTournaments.length > 0">
-    <div class="tournament-row previous" *ngFor="let item of completedTournaments">
-      <a [routerLink]="bracketsLink(item.tournament)" class="tournament-main-link">
-        <div>
-          <b>{{item.tournament.name}}</b>
-          <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'No date added'}} • Champion: {{item.championName || 'Declared'}}</span>
-        </div>
-        <em>Results →</em>
-      </a>
-    </div>
+  <div class="completed-results-grid" *ngIf="completedTournaments.length > 0">
+    <article class="completed-result-card" *ngFor="let item of completedTournaments">
+      <div>
+        <b>{{item.tournament.name}}</b>
+        <span>{{displayFormat(item.tournament)}} • {{item.tournament.tournamentDate ? (item.tournament.tournamentDate | date:'mediumDate') : 'Date not set'}}</span>
+      </div>
+      <div class="champion-dashboard-badge" *ngIf="item.championName">🏆 {{item.championName}}</div>
+      <a [routerLink]="bracketsLink(item.tournament)" class="results-button">View Results</a>
+    </article>
   </div>
 </section>
 ` })
@@ -72,10 +105,14 @@ export class DashboardComponent implements OnInit {
   tournaments: DashboardTournament[] = [];
   currentTournaments: DashboardTournament[] = [];
   completedTournaments: DashboardTournament[] = [];
+  registeredPlayers: {[tournamentId: string]: PublicRegistration[]} = {};
+  playersOpen: {[tournamentId: string]: boolean} = {};
+  playersLoading: {[tournamentId: string]: boolean} = {};
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private admin: AdminAccessService) {}
 
   ngOnInit(): void { this.load(); }
+  isSuperAdmin(): boolean { return this.admin.isSuperAdmin(); }
 
   load(): void {
     this.api.dashboardTournaments().subscribe(tournaments => {
@@ -84,18 +121,46 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  toggleRegisteredPlayers(t: Tournament): void {
+    const id = t.id || '';
+    if (!id) return;
+    this.playersOpen[id] = !this.playersOpen[id];
+    if (!this.playersOpen[id] || this.registeredPlayers[id]) return;
+    this.playersLoading[id] = true;
+    this.api.publicRegistrationNames(id).subscribe({
+      next: players => {
+        this.registeredPlayers[id] = players || [];
+        this.playersLoading[id] = false;
+      },
+      error: () => {
+        this.registeredPlayers[id] = [];
+        this.playersLoading[id] = false;
+      }
+    });
+  }
+
   private splitTournaments(): void {
     this.completedTournaments = this.tournaments
       .filter(item => item.championDeclared || (item.tournament.status || '').toUpperCase() === 'COMPLETED')
-      .sort((a, b) => this.dateValue(b.tournament) - this.dateValue(a.tournament));
+      .sort((a, b) => this.dateValue(b.tournament, 0) - this.dateValue(a.tournament, 0));
 
     this.currentTournaments = this.tournaments
       .filter(item => !item.championDeclared && (item.tournament.status || '').toUpperCase() !== 'COMPLETED')
-      .sort((a, b) => this.dateValue(a.tournament) - this.dateValue(b.tournament));
+      .sort((a, b) => this.currentSortValue(a.tournament) - this.currentSortValue(b.tournament));
   }
 
-  private dateValue(t: Tournament): number {
-    return t.tournamentDate ? new Date(t.tournamentDate).getTime() : Number.MAX_SAFE_INTEGER;
+  private currentSortValue(t: Tournament): number {
+    if (!t.tournamentDate) return Number.MAX_SAFE_INTEGER - 1;
+    const d = new Date(`${t.tournamentDate}T00:00:00`).getTime();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (d >= today) return d - today;
+    // Past-but-open tournaments appear after future tournaments, newest past first.
+    return 10_000_000_000_000 + (today - d);
+  }
+
+  private dateValue(t: Tournament, fallback: number): number {
+    return t.tournamentDate ? new Date(`${t.tournamentDate}T00:00:00`).getTime() : fallback;
   }
 
   displayFormat(t: Tournament): string {
@@ -103,8 +168,12 @@ export class DashboardComponent implements OnInit {
   }
 
   bracketsLink(t: Tournament): any[] { return ['/brackets', t.id || '', this.displayFormat(t)]; }
-
-  standingsLink(t: Tournament): any[] {
-    return ['/standings', t.id || '', this.displayFormat(t)];
+  hasStartedLiveTournament(): boolean {
+    return this.tournaments.some(item =>
+      !!item.srrStarted &&
+      !!item.tournament.liveUrl &&
+      (item.tournament.status || '').toUpperCase() !== 'COMPLETED'
+    );
   }
+
 }

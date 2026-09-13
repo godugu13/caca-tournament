@@ -16,6 +16,8 @@ export interface Tournament {
   teamPlayerNames?: string[];
   description?: string;
   flyerUrl?: string;
+  liveUrl?: string;
+  hiddenFromDashboard?: boolean;
   completedAt?: string;
   tournamentDate?: string;
   tournamentEndDate?: string;
@@ -118,4 +120,7 @@ export interface DashboardTournament {
   championDeclared: boolean;
   championName?: string;
   championFormat?: string;
+  srrStarted?: boolean;
 }
+
+export interface PublicRegistration { playerName: string; format?: string; partnerName?: string; }

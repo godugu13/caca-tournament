@@ -2496,3 +2496,194 @@ h1, h2, h3,
     align-items: stretch;
   }
 }
+
+
+/* Step 29.31 - production polish, privacy, live, dashboard */
+.icon-save {
+  background: #15803d !important;
+  color: #ffffff !important;
+  border: 1px solid #166534 !important;
+  border-radius: 9px !important;
+  min-width: 44px;
+  min-height: 38px;
+}
+.icon-save:hover:not(:disabled) {
+  background: #166534 !important;
+}
+.icon-save:disabled {
+  background: #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+}
+
+.app-logo-31 {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px !important;
+  border: 2px solid #111827 !important;
+  background: #fffdf2 !important;
+}
+.app-logo-31 .logo-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #111827;
+  color: #ffd33d;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 19px;
+  font-weight: 900;
+}
+.app-logo-31 .logo-copy {
+  display: flex;
+  flex-direction: column;
+}
+.app-logo-31 .logo-copy b {
+  color: #111827;
+  font-family: "Times New Roman", Times, serif;
+}
+.app-logo-31 .logo-copy span,
+.app-logo-31 .logo-copy small {
+  color: #374151;
+}
+
+.nav-live-link,
+.live-card {
+  border-color: #b91c1c !important;
+}
+.nav-live-link {
+  background: #7f1d1d !important;
+  color: #ffffff !important;
+}
+.live-card {
+  background: #fff1f2 !important;
+}
+
+.super-admin-dashboard-tools {
+  border: 1px solid #111827;
+  background: #fffdf2;
+}
+.dashboard-admin-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dashboard-admin-links a {
+  background: #111827;
+  color: #ffd33d;
+  padding: 8px 12px;
+  border-radius: 9px;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.dashboard-tournament-card {
+  align-items: flex-start !important;
+}
+.dashboard-tournament-content {
+  flex: 1;
+  min-width: 0;
+}
+.dashboard-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.dashboard-player-list {
+  background: #f8fafc;
+  border: 1px solid #dbe5ec;
+  border-radius: 10px;
+  padding: 9px 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+.dashboard-player-list div {
+  padding: 4px 0;
+  border-bottom: 1px solid #edf2f7;
+}
+.live-link-small,
+.live-watch-button {
+  display: inline-block;
+  background: #b91c1c;
+  color: #fff !important;
+  border-radius: 9px;
+  padding: 7px 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.completed-results-grid {
+  display: grid;
+  gap: 10px;
+}
+.completed-result-card {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 6px solid #111827;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.completed-result-card > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.champion-dashboard-badge {
+  background: #fff3bf;
+  color: #7c5200;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 800;
+}
+.results-button {
+  background: #111827;
+  color: #ffd33d !important;
+  border-radius: 9px;
+  padding: 8px 12px;
+  text-decoration: none;
+  font-weight: 900;
+}
+
+.live-page {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.live-tournament-grid {
+  display: grid;
+  gap: 12px;
+}
+.live-tournament-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border-left: 6px solid #b91c1c;
+}
+.live-tournament-card h3 {
+  margin: 0 0 4px;
+}
+
+.summary-standings-card {
+  margin-top: 14px;
+}
+
+@media (max-width: 700px) {
+  .completed-result-card {
+    grid-template-columns: 1fr;
+  }
+  .live-tournament-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .app-logo-31 .logo-mark {
+    width: 38px;
+    height: 38px;
+  }
+}

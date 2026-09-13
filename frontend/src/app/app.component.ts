@@ -11,16 +11,20 @@ import { ApiService } from './services/api.service';
   template: `
     <header class="topbar">
       <div class="brand single-brand">
-        <div class="logo-box">
-          <b>CACA 3.0™</b>
-          <span>Tournament Management System</span>
-          <small>Let’s Play Together</small>
+        <div class="logo-box app-logo-31">
+          <div class="logo-mark">C3</div>
+          <div class="logo-copy">
+            <b>CACA 3.0™</b>
+            <span>Tournament Management System</span>
+            <small>Let’s Play Together</small>
+          </div>
         </div>
       </div>
       <nav>
         <a routerLink="/">Dashboard</a>
         <a routerLink="/registrations">Register For</a>
         <a routerLink="/player-score">Player Score</a>
+        <a *ngIf="showTournamentLive" routerLink="/live" class="nav-live-link">🔴 Tournament Day - Live</a>
         <a routerLink="/brackets">Brackets</a>
         <a routerLink="/standings">Standings</a>
         <ng-container *ngIf="isAdmin()">
@@ -37,9 +41,11 @@ import { ApiService } from './services/api.service';
     <main><router-outlet /></main><footer class="app-footer">© CACA 3.0 owners. All rights reserved.</footer>`
 })
 export class AppComponent {
+  showTournamentLive = false;
   constructor(private admin: AdminAccessService, private api: ApiService) {
     this.clearLegacyAdminLocalStorage();
     this.startKeepAlive();
+    this.loadTournamentLiveVisibility();
   }
 
   private clearLegacyAdminLocalStorage(): void {
@@ -51,5 +57,18 @@ export class AppComponent {
   isAdmin(): boolean { return this.admin.isAdmin(); }
   logout(): void { this.admin.logout(); }
   private startKeepAlive(): void { this.api.ping().subscribe({error:()=>{}}); window.setInterval(()=>this.api.ping().subscribe({error:()=>{}}),60000); }
+
+  private loadTournamentLiveVisibility(): void {
+    this.api.dashboardTournaments().subscribe({
+      next: items => {
+        this.showTournamentLive = (items || []).some(item =>
+          !!item.srrStarted &&
+          !!item.tournament.liveUrl &&
+          (item.tournament.status || '').toUpperCase() !== 'COMPLETED'
+        );
+      },
+      error: () => this.showTournamentLive = false
+    });
+  }
 
 }

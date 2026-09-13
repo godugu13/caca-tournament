@@ -27,6 +27,19 @@ public class RegistrationController {
         return normalizeList(repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D"));
     }
 
+
+    @GetMapping("/tournament/{tournamentId}/public-names")
+    public List<Map<String, String>> publicNames(@PathVariable String tournamentId) {
+        return repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D").stream()
+                .map(this::normalizeCsvMappedRegistration)
+                .map(r -> Map.of(
+                        "playerName", safe(r.getPlayerName()),
+                        "format", safe(r.getFormat()),
+                        "partnerName", safe(r.getPartnerName())
+                ))
+                .toList();
+    }
+
     @GetMapping("/tournament/{tournamentId}/{format}")
     public List<Registration> byTournamentAndFormat(@PathVariable String tournamentId, @PathVariable String format) {
         return normalizeList(repository.findByTournamentIdAndFormatAndRecordStatusNot(tournamentId, format, "D"));

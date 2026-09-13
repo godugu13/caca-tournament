@@ -164,10 +164,10 @@ import { AppConfigService } from "../../services/app-config.service";
               >{{ matchRoundLabel(m) }} -
               {{ m.status === "BYE" ? "BYE" : "Venue #" + m.boardNumber }}</b
             >
-            <p>Rank {{ m.player1Rank || "-" }}: {{ m.player1Name }}</p>
+            <p>{{showRankForMatch(m) ? ("Rank " + (m.player1Rank || "-") + ": ") : ""}}{{ m.player1Name }}</p>
             <ng-container *ngIf="m.status !== 'BYE'; else byeBlock">
               <p>vs</p>
-              <p>Rank {{ m.player2Rank || "-" }}: {{ m.player2Name }}</p>
+              <p>{{showRankForMatch(m) ? ("Rank " + (m.player2Rank || "-") + ": ") : ""}}{{ m.player2Name }}</p>
             </ng-container>
             <ng-template #byeBlock
               ><p class="ok">BYE - no opponent this round</p></ng-template
@@ -1129,6 +1129,12 @@ Tap the link, enter your registered phone number, and submit your venue score.`;
     const subject = encodeURIComponent('CACA Tournament Player Scoring Link');
     const body = encodeURIComponent(`Please use this scoring link to enter your assigned board score:\n\n${this.playerScoringLink()}\n\nEnter your registered phone number when prompted.`);
     return `mailto:?subject=${subject}&body=${body}`;
+  }
+
+
+  showRankForMatch(m: Match): boolean {
+    const type = (m?.roundType || 'SRR').toUpperCase();
+    return type !== 'SRR' || Number(m?.roundNumber || 0) > 1;
   }
 
 

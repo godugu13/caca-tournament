@@ -27,7 +27,7 @@ import { Tournament, Registration } from '../../models/models';
     <div class="payment-note compact-payment-note">
       <span class="warning-line">Payment required to confirm registration.</span>
       <span>Base Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></span>
-      <span *ngIf="selectedTournament?.totalNumberOfPlayers">Spots Left: <b>{{spotsLeft()}}</b> / {{selectedTournament?.totalNumberOfPlayers}}</span>
+      <span *ngIf="selectedTournament?.totalNumberOfPlayers">Spots Left: <b>{{spotsLeft()}}</b> / {{selectedTournament.totalNumberOfPlayers}}</span>
       <span>Final Fee: <b>{{finalFee() | currency:'USD':'symbol':'1.0-2'}}</b></span>
       <span>Zelle: <b>cacafunds&#64;gmail.com</b></span>
     </div>
@@ -146,7 +146,7 @@ import { Tournament, Registration } from '../../models/models';
   </ng-container>
 
   <h3>Players View</h3>
-  <div class="card bulk-remove-card">
+  <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
     <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
     <small>Enter Admin PIN once, select multiple players, and remove them together.</small>
@@ -156,34 +156,34 @@ import { Tournament, Registration } from '../../models/models';
     <table class="players-table">
       <thead>
         <tr>
-          <th class="select-col">Select</th>
+          <th class="select-col" *ngIf="isAdmin()">Select</th>
           <th class="serial-col">#</th>
           <th>Player</th>
           <th>Format</th>
           <th *ngIf="showPartnerColumn()">Partner</th>
-          <th>Email</th>
-          <th>Phone</th>
-          <th>Final Fee</th>
-          <th>Payment</th>
-          <th>Action</th>
+          <th *ngIf="isAdmin()">Email</th>
+          <th *ngIf="isAdmin()">Phone</th>
+          <th *ngIf="isAdmin()">Final Fee</th>
+          <th *ngIf="isAdmin()">Payment</th>
+          <th *ngIf="isAdmin()">Action</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let p of players; let i=index">
-          <td><input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)"></td>
+          <td *ngIf="isAdmin()"><input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)"></td>
           <td>{{i+1}}</td>
           <td>{{displayPlayerName(p)}}</td>
           <td>{{p.format || model.format}}</td>
           <td *ngIf="showPartnerColumn()">{{partnerDisplay(p)}}</td>
-          <td>{{displayEmail(p)}}</td>
-          <td>{{displayPhone(p)}}</td>
-          <td>{{p.finalFee || 0 | currency:'USD':'symbol':'1.0-2'}}</td>
-          <td>
+          <td *ngIf="isAdmin()">{{displayEmail(p)}}</td>
+          <td *ngIf="isAdmin()">{{displayPhone(p)}}</td>
+          <td *ngIf="isAdmin()">{{p.finalFee || 0 | currency:'USD':'symbol':'1.0-2'}}</td>
+          <td *ngIf="isAdmin()">
             <span [class.ok]="(p.paymentStatus || '').toUpperCase()==='PAID'" [class.warning]="(p.paymentStatus || '').toUpperCase()!=='PAID'">
               {{(p.paymentStatus || 'PENDING').toUpperCase()==='PAID' ? '✓ Paid' : '✗ Pending'}}
             </span>
           </td>
-          <td>
+          <td *ngIf="isAdmin()">
             <button type="button" class="secondary small" (click)="togglePayment(p)">{{(p.paymentStatus || '').toUpperCase()==='PAID' ? 'Mark Pending' : 'Mark Paid'}}</button>
             <button type="button" class="danger small" (click)="removeSinglePlayer(p)">Remove</button>
           </td>
@@ -235,10 +235,14 @@ export class RegistrationsComponent implements OnInit {
 
   ngOnInit() {
     this.api.tournaments().subscribe(tournaments => {
-      this.tournaments = tournaments || [];
+      this.tournaments = (tournaments || []).filter(t => {
+        const completed = (t.status || '').toUpperCase() === 'COMPLETED';
+        const hidden = !!t.hiddenFromDashboard;
+        return !completed && (this.isAdmin() || !hidden);
+      });
       const queryTournamentId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
       const queryFormat = this.route.snapshot.queryParamMap.get('format') || '';
-      if (queryTournamentId) {
+      if (queryTournamentId && this.tournaments.some(t => t.id === queryTournamentId)) {
         this.model.tournamentId = queryTournamentId;
         this.onTournamentChange();
         if (queryFormat) {
@@ -307,8 +311,11 @@ export class RegistrationsComponent implements OnInit {
       this.players = [];
       return;
     }
-    this.api.registrations(this.model.tournamentId).subscribe(players => {
-      this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p));
+    const request: any = this.isAdmin()
+      ? this.api.registrations(this.model.tournamentId)
+      : this.api.publicRegistrationNames(this.model.tournamentId);
+    request.subscribe((players: any[]) => {
+      this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
       this.selectedPlayerIds = {};
     });
   }
@@ -334,6 +341,7 @@ export class RegistrationsComponent implements OnInit {
     this.registrationErrorMessage = '';
 
     if (!this.model.tournamentId) { this.registrationErrorMessage = 'Please select a tournament before registering.'; return; }
+    if (!this.selectedTournament || (this.selectedTournament.status || '').toUpperCase() === 'COMPLETED') { this.registrationErrorMessage = 'Registration is closed for this completed tournament.'; return; }
     if (!this.selectedFormats.length) { this.registrationErrorMessage = 'Please select at least one format.'; return; }
     if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
     if (this.selectedFormats.some(f => f === 'Doubles' || f === 'Mixed Doubles') && !this.model.partnerName) { this.registrationErrorMessage = 'Please enter Partner Name.'; return; }

@@ -14,6 +14,7 @@ import { AdminLoginComponent } from './app/pages/admin-login/admin-login.compone
 import { AuditHistoryComponent } from './app/pages/audit-history/audit-history.component';
 import { DeploymentSettingsComponent } from './app/pages/deployment-settings/deployment-settings.component';
 import { PlayerScoreComponent } from './app/pages/player-score/player-score.component';
+import { LiveComponent } from './app/pages/live/live.component';
 
 const adminGuard: CanActivateFn = (route, state) => {
   return sessionStorage.getItem('cacaAdminUnlocked') === 'true'
@@ -28,6 +29,7 @@ const routes: Routes = [
   { path: 'gameday', component: GamedayComponent, canActivate: [adminGuard] },
   { path: 'scores', component: ScoresComponent, canActivate: [adminGuard] },
   { path: 'player-score', component: PlayerScoreComponent },
+  { path: 'live', component: LiveComponent },
   { path: 'admin-login', component: AdminLoginComponent },
   { path: 'audit-history', component: AuditHistoryComponent, canActivate: [adminGuard] },
   { path: 'deployment-settings', component: DeploymentSettingsComponent, canActivate: [adminGuard] },

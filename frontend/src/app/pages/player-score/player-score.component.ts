@@ -68,7 +68,7 @@ import { Match, Tournament } from '../../models/models';
     <div class="round-tabs compact-tabs" *ngIf="accessibleRoundTabs().length > 1">
       <button type="button"
               *ngFor="let item of accessibleRoundTabs()"
-              [class.active]="match?.id === item.id"
+              [class.active]="match.id === item.id"
               (click)="selectAccessibleMatch(item)">
         {{roundLabelFor(item)}}
       </button>

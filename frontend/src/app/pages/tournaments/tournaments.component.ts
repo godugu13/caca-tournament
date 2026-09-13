@@ -75,6 +75,12 @@ import { Tournament, Registration } from '../../models/models';
         <input [(ngModel)]="model.address" placeholder="Physical tournament address">
       </div>
 
+      <div class="field-group venue-field">
+        <label>Tournament Day Live - YouTube Video / Live Link</label>
+        <input [(ngModel)]="model.liveUrl" placeholder="Paste YouTube Live or YouTube video link">
+        <small class="muted">Admin can paste a YouTube Live or YouTube video link here. It becomes publicly visible only after SRR Round 1 is generated.</small>
+      </div>
+
       <div class="field-group count-field">
         <label>{{ participantCountLabel() }}</label>
         <input [(ngModel)]="model.totalNumberOfPlayers" type="number" min="2">
@@ -153,7 +159,7 @@ import { Tournament, Registration } from '../../models/models';
 <div class="table-scroll manage-tournament-scroll">
 <table>
   <tr>
-    <th>Name</th><th>Formats</th><th>Date</th><th>Fee</th><th>Address</th><th>SRR</th><th>KO</th><th>Status</th><th>Action</th>
+    <th>Name</th><th>Formats</th><th>Date</th><th>Fee</th><th>Address</th><th>SRR</th><th>KO</th><th>Status</th><th *ngIf="isSuperAdmin()">Hidden</th><th>Action</th>
   </tr>
   <tr *ngFor="let t of tournaments">
     <td>{{t.name}}</td>
@@ -164,9 +170,11 @@ import { Tournament, Registration } from '../../models/models';
     <td>{{t.srrRounds}}</td>
     <td>{{t.knockoutRounds}}</td>
     <td>{{t.status}}</td>
+    <td *ngIf="isSuperAdmin()">{{t.hiddenFromDashboard ? 'Yes' : 'No'}}</td>
     <td>
       <button type="button" class="secondary small" (click)="viewRegisteredPlayers(t)">View Players</button>
       <button type="button" class="secondary small" (click)="editTournament(t)">Edit</button>
+      <button type="button" class="black-btn small" *ngIf="isSuperAdmin()" (click)="toggleDashboardVisibility(t)">{{t.hiddenFromDashboard ? 'Show Publicly' : 'Hide Publicly'}}</button>
       <button type="button" class="yellow-btn small" *ngIf="(t.status || 'OPEN') !== 'COMPLETED'" (click)="completeTournament(t)">Complete Tournament</button>
       <button type="button" class="secondary small" *ngIf="t.status === 'COMPLETED'" (click)="reopenTournament(t)">Reopen</button>
       <button type="button" class="danger small" (click)="askDelete(t)">Delete</button>
@@ -219,6 +227,15 @@ export class TournamentsComponent implements OnInit {
   model: Tournament=this.emptyModel();
 
   constructor(private api:ApiService, private admin: AdminAccessService){}
+  isSuperAdmin(){ return this.admin.isSuperAdmin(); }
+  toggleDashboardVisibility(t:Tournament){
+    if(!t.id) return;
+    this.api.setTournamentDashboardHidden(t.id, !t.hiddenFromDashboard, this.admin.currentPin()).subscribe({
+      next: updated => { t.hiddenFromDashboard = updated.hiddenFromDashboard; },
+      error: err => alert(err?.error?.message || err?.error || 'Unable to update visibility.')
+    });
+  }
+
   ngOnInit(){this.load()}
   load(){this.api.tournamentsByPin(this.admin.currentPin()).subscribe(x=>this.tournaments=x)}
   emptyModel(): Tournament { return {name:'', tournamentType:'', registrationFee: 0, srrRounds:5, knockoutRounds:1, formats:['Singles'], status:'OPEN', adminPin:'', playersPerTeam:3, teamPlayerNames:[], discountOptions: this.defaultDiscountOptions() as any, tournamentStartTime:'09:00', tournamentEndTime:'19:00'}; }

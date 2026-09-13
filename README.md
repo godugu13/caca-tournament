@@ -2186,3 +2186,15 @@ This step is rebuilt from the stable Step 29.31C baseline.
 - Public registration uses the fast catalog. Logged-in admins use their Admin-PIN tournament list.
 - Existing Super Admin Manage Tournaments endpoint, full Edit Tournament support, Restore, soft delete, and Tournament Day Live gating remain unchanged.
 - Deployment navigation remains removed.
+
+
+## Step 29.31I - Compact Registration UI / Mobile Fix
+
+- Rebuilt Register For as compact horizontal rows instead of oversized cards/controls.
+- Tournament selection remains single-select using a small radio control; if only one tournament is available it is selected automatically.
+- Format is determined from the tournament configuration and displayed as a disabled/read-only field. Users no longer choose the format with checkboxes.
+- Full Name and Partner Name inputs are limited to 25 characters.
+- Radio buttons and checkboxes use compact 14px controls.
+- Email, name, phone, format, payment and discount controls use compact widths/heights.
+- Mobile layout uses short label/value rows, compact controls, wrapping schedule/payment information, and horizontal scrolling only where tables require it.
+- Fast tournament catalog, Dashboard recovery, Admin edit, Restore, soft-delete, and Tournament Day Live behavior from prior steps are preserved.

@@ -33,105 +33,111 @@ import { Tournament, Registration } from '../../models/models';
     </div>
 
     <div class="form-grid">
-      <div class="field-group tournament-picker-wrap">
-        <label>Tournament <span class="required">*</span></label>
+      <div class="compact-row tournament-picker-wrap">
+        <label class="row-label">Tournament <span class="required">*</span></label>
+        <div class="row-value">
+          <div class="tournament-loading" *ngIf="tournamentsLoading">Loading tournaments…</div>
+          <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">{{tournamentsLoadError}}</div>
 
-        <div class="tournament-loading" *ngIf="tournamentsLoading">
-          Loading tournaments…
-        </div>
+          <div class="compact-tournament-list" *ngIf="!tournamentsLoading && tournaments.length">
+            <label class="compact-tournament-option"
+                   *ngFor="let t of tournaments"
+                   [class.selected]="model.tournamentId === t.id">
+              <input type="radio"
+                     name="registrationTournament"
+                     [value]="t.id"
+                     [(ngModel)]="model.tournamentId"
+                     (change)="onTournamentChange()">
+              <span>
+                <b>{{t.name}}</b>
+                <small>{{t.tournamentDate || 'Date TBD'}}</small>
+              </span>
+            </label>
+          </div>
 
-        <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">
-          {{tournamentsLoadError}}
-        </div>
-
-        <div class="tournament-radio-list" *ngIf="!tournamentsLoading && tournaments.length">
-          <label class="tournament-radio-card"
-                 *ngFor="let t of tournaments"
-                 [class.selected]="model.tournamentId === t.id">
-            <input type="radio"
-                   name="registrationTournament"
-                   [value]="t.id"
-                   [(ngModel)]="model.tournamentId"
-                   (change)="onTournamentChange()">
-            <span class="tournament-radio-copy">
-              <b>{{t.name}}</b>
-              <small>{{t.tournamentDate || 'Date TBD'}} • {{(t.formats || []).join(', ') || t.tournamentType || 'Singles'}}</small>
-            </span>
-          </label>
-        </div>
-
-        <div class="muted" *ngIf="!tournamentsLoading && !tournamentsLoadError && tournaments.length === 0">
-          No open tournaments are currently available for registration.
+          <div class="muted" *ngIf="!tournamentsLoading && !tournamentsLoadError && tournaments.length === 0">
+            No open tournaments are currently available.
+          </div>
         </div>
       </div>
 
-      <div class="field-group format-checkbox-group"><label>Format(s) <span class="required">*</span></label><label class="inline-check" *ngFor="let f of availableFormats"><input type="checkbox" [checked]="selectedFormats.includes(f)" (change)="toggleRegistrationFormat(f,$event)"> {{f}}</label></div>
-
-      <div class="field-group email-lookup">
-        <label>Email <span class="required">*</span></label>
-        <input [(ngModel)]="model.email" placeholder="Email">
-        <button type="button" class="secondary" (click)="lookupMember()">Lookup</button>
-        <small>Existing member details will auto-fill. You can still edit them.</small>
+      <div class="compact-row" *ngIf="selectedTournament">
+        <label class="row-label">Format</label>
+        <div class="row-value">
+          <input class="compact-readonly-input" [value]="model.format" disabled>
+        </div>
       </div>
 
-      <div class="field-group">
-        <label>Full Name <span class="required">*</span></label>
-        <input [(ngModel)]="model.playerName" placeholder="Full Name">
+      <div class="compact-row">
+        <label class="row-label">Email <span class="required">*</span></label>
+        <div class="row-value compact-inline">
+          <input class="compact-input email-input" [(ngModel)]="model.email" placeholder="Email">
+          <button type="button" class="secondary compact-btn" (click)="lookupMember()">Lookup</button>
+        </div>
       </div>
 
-      <div class="field-group">
-        <label>Phone</label>
-        <input [(ngModel)]="model.phone" placeholder="Phone">
+      <div class="compact-row">
+        <label class="row-label">Full Name <span class="required">*</span></label>
+        <div class="row-value"><input class="compact-input name-input" maxlength="25" [(ngModel)]="model.playerName" placeholder="Full Name"></div>
       </div>
 
-      <div class="field-group" *ngIf="showPartnerColumn()">
-        <label>Partner Name <span class="required">*</span></label>
-        <input [(ngModel)]="model.partnerName" placeholder="Partner Name">
+      <div class="compact-row">
+        <label class="row-label">Phone</label>
+        <div class="row-value"><input class="compact-input phone-input" maxlength="15" [(ngModel)]="model.phone" placeholder="Phone"></div>
       </div>
 
-      <div class="discount-registration-box" *ngIf="enabledDiscounts().length">
+      <div class="compact-row" *ngIf="showPartnerColumn()">
+        <label class="row-label">Partner Name <span class="required">*</span></label>
+        <div class="row-value"><input class="compact-input name-input" maxlength="25" [(ngModel)]="model.partnerName" placeholder="Partner Name"></div>
+      </div>
+
+      <div class="discount-registration-box compact-discount-box" *ngIf="enabledDiscounts().length">
         <h3>Discount / Eligibility</h3>
         <p class="muted">Optional. Select discount only if applicable. Discount will be deducted from final fee.</p>
 
-        <div class="field-group">
-          <label>Discount Type</label>
-          <select [(ngModel)]="model.discountType" (change)="onDiscountChange()">
+        <div class="compact-row">
+          <label class="row-label">Discount Type</label>
+          <div class="row-value">
+          <select class="compact-select" [(ngModel)]="model.discountType" (change)="onDiscountChange()">
             <option value="">No Discount</option>
             <option *ngFor="let d of enabledDiscounts()" [value]="d.type">{{d.label}} - {{d.amount || 0 | currency:'USD':'symbol':'1.0-2'}}</option>
           </select>
+          </div>
         </div>
 
-        <div class="field-group" *ngIf="selectedDiscountRequiresName()">
-          <label>Eligible Name</label>
-          <select [(ngModel)]="model.discountName" (change)="updatePaymentByFinalFee()">
+        <div class="compact-row" *ngIf="selectedDiscountRequiresName()">
+          <label class="row-label">Eligible Name</label>
+          <div class="row-value"><select class="compact-select" [(ngModel)]="model.discountName" (change)="updatePaymentByFinalFee()">
             <option value="">Select Name</option>
             <option *ngFor="let n of selectedDiscountNames()" [value]="n">{{n}}</option>
-          </select>
+          </select></div>
         </div>
 
-        <div class="field-group" *ngIf="model.discountType === 'WOMEN'">
-          <label>Gender</label>
-          <select [(ngModel)]="model.gender" (change)="updatePaymentByFinalFee()">
+        <div class="compact-row" *ngIf="model.discountType === 'WOMEN'">
+          <label class="row-label">Gender</label>
+          <div class="row-value"><select class="compact-select" [(ngModel)]="model.gender" (change)="updatePaymentByFinalFee()">
             <option value="">Select</option>
             <option value="Women">Women</option>
             <option value="Men">Men</option>
             <option value="Other">Other</option>
-          </select>
+          </select></div>
         </div>
 
-        <div class="fee-summary">
+        <div class="fee-summary compact-fee-summary">
           <span>Base Fee: {{selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2'}}</span>
           <span>Discount: -{{discountAmount() | currency:'USD':'symbol':'1.0-2'}}</span>
           <b>Final Fee: {{finalFee() | currency:'USD':'symbol':'1.0-2'}}</b>
         </div>
       </div>
 
-      <div class="field-group">
-        <label>Payment Status</label>
-        <select [(ngModel)]="model.paymentStatus">
-          <option value="PENDING">Pending</option>
-          <option value="PAID">Paid</option>
-        </select>
+      <div class="compact-row">
+        <label class="row-label">Payment Status</label>
+        <div class="row-value">
+          <select class="compact-select" [(ngModel)]="model.paymentStatus">
+            <option value="PENDING">Pending</option>
+            <option value="PAID">Paid</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -280,14 +286,12 @@ export class RegistrationsComponent implements OnInit {
         this.tournamentsLoading = false;
 
         const queryTournamentId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
-        const queryFormat = this.route.snapshot.queryParamMap.get('format') || '';
         if (queryTournamentId && this.tournaments.some(t => t.id === queryTournamentId)) {
           this.model.tournamentId = queryTournamentId;
           this.onTournamentChange();
-          if (queryFormat) {
-            this.model.format = queryFormat;
-            this.onFormatChange();
-          }
+        } else if (this.tournaments.length === 1) {
+          this.model.tournamentId = this.tournaments[0].id || '';
+          this.onTournamentChange();
         }
       },
       error: err => {
@@ -331,8 +335,6 @@ export class RegistrationsComponent implements OnInit {
     const h12 = hour % 12 || 12;
     return `${h12}:${minute} ${suffix}`;
   }
-
-  toggleRegistrationFormat(format:string,event:any){ const checked=!!event?.target?.checked; this.selectedFormats=checked?Array.from(new Set([...this.selectedFormats,format])):this.selectedFormats.filter(f=>f!==format); this.model.format=this.selectedFormats[0]||''; }
   openDeletePinModal(){ if(!this.selectedCount()){alert('Please select at least one player.');return;} this.bulkRemovePin='';this.deletePinError='';this.deletePinModalOpen=true; }
   confirmDeleteWithPin(){ if(!this.bulkRemovePin){this.deletePinError='Enter Admin PIN';return;} this.removeSelectedPlayers(); }
 
@@ -395,6 +397,10 @@ export class RegistrationsComponent implements OnInit {
     if (!this.selectedTournament || (this.selectedTournament.status || '').toUpperCase() === 'COMPLETED') { this.registrationErrorMessage = 'Registration is closed for this completed tournament.'; return; }
     if (!this.selectedFormats.length) { this.registrationErrorMessage = 'Please select at least one format.'; return; }
     if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
+    if ((this.model.playerName || '').length > 25 || (this.model.partnerName || '').length > 25) {
+      this.registrationErrorMessage = 'Player and Partner names can be a maximum of 25 characters.';
+      return;
+    }
     if (this.selectedFormats.some(f => f === 'Doubles' || f === 'Mixed Doubles') && !this.model.partnerName) { this.registrationErrorMessage = 'Please enter Partner Name.'; return; }
 
     this.updatePaymentByFinalFee();

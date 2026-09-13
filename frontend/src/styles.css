@@ -2725,3 +2725,282 @@ h1, h2, h3,
 @media (max-width:700px) {
   .tournament-radio-list { grid-template-columns:1fr; }
 }
+
+
+/* Step 29.31I - compact registration form */
+.registration-page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+.registration-card {
+  padding: 14px 16px;
+}
+.registration-card .form-grid {
+  display: block;
+}
+.compact-row {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.compact-row .row-label {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.compact-row .row-value {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.compact-inline {
+  flex-wrap: nowrap;
+}
+.registration-card .compact-input,
+.registration-card .compact-readonly-input,
+.registration-card .compact-select {
+  box-sizing: border-box;
+  height: 30px;
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+  width: auto;
+  max-width: 100%;
+}
+.registration-card .name-input {
+  width: 240px;
+}
+.registration-card .phone-input {
+  width: 155px;
+}
+.registration-card .email-input {
+  width: 300px;
+}
+.registration-card .compact-readonly-input {
+  width: 145px;
+  background: #f3f5f6;
+  opacity: 1;
+}
+.registration-card .compact-select {
+  width: 220px;
+}
+.registration-card .compact-btn {
+  width: auto;
+  min-width: 68px;
+  height: 30px;
+  padding: 3px 12px;
+  margin: 0;
+}
+.compact-tournament-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, 520px);
+}
+.compact-tournament-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 8px;
+  margin: 0;
+  border: 1px solid #c9dce7;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.compact-tournament-option.selected {
+  background: #eef8fd;
+  border-color: #5aaed6;
+}
+.compact-tournament-option input[type="radio"],
+.registration-page input[type="checkbox"],
+.registration-page input[type="radio"] {
+  width: 14px !important;
+  min-width: 14px !important;
+  max-width: 14px !important;
+  height: 14px !important;
+  min-height: 14px !important;
+  padding: 0 !important;
+  margin: 0 4px 0 0 !important;
+  flex: 0 0 14px;
+}
+.compact-tournament-option span {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.compact-tournament-option b {
+  font-size: 13px;
+  line-height: 1.2;
+}
+.compact-tournament-option small {
+  font-size: 11px;
+  opacity: .75;
+  white-space: nowrap;
+}
+.compact-discount-box {
+  margin: 10px 0;
+  padding: 10px 12px;
+}
+.compact-discount-box h3 {
+  margin: 0 0 4px;
+}
+.compact-discount-box .muted {
+  margin: 0 0 6px;
+}
+.compact-fee-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 7px;
+}
+.tournament-schedule-display,
+.compact-payment-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 12px;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  line-height: 1.25;
+}
+.registration-card .center-actions {
+  margin-top: 10px;
+}
+.registration-card .center-actions button {
+  min-width: 90px;
+  width: auto;
+  height: 32px;
+  padding: 4px 16px;
+}
+.bulk-remove-card input[type="checkbox"],
+.players-table input[type="checkbox"] {
+  width: 14px !important;
+  min-width: 14px !important;
+  height: 14px !important;
+}
+
+/* Keep admin transfer controls compact too. */
+.registration-transfer-grid input[type="password"] {
+  width: 120px;
+  height: 30px;
+}
+.registration-transfer-grid input[type="file"] {
+  min-height: 30px;
+}
+
+@media (max-width: 700px) {
+  .registration-page {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 6px;
+    box-sizing: border-box;
+  }
+  .registration-page h2,
+  .registration-page h3 {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .registration-card {
+    padding: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .compact-row {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 5px;
+    margin: 5px 0;
+  }
+  .compact-row .row-label {
+    font-size: 12px;
+  }
+  .registration-card .compact-input,
+  .registration-card .compact-readonly-input,
+  .registration-card .compact-select {
+    font-size: 12px;
+    height: 29px;
+    min-height: 29px;
+  }
+  .registration-card .name-input,
+  .registration-card .email-input {
+    width: 100%;
+  }
+  .registration-card .phone-input {
+    width: 135px;
+    max-width: 100%;
+  }
+  .registration-card .compact-readonly-input {
+    width: 130px;
+  }
+  .registration-card .compact-select {
+    width: 100%;
+  }
+  .compact-inline {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+  .registration-card .compact-btn {
+    min-width: 58px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .compact-tournament-list {
+    width: 100%;
+  }
+  .compact-tournament-option {
+    grid-template-columns: 16px minmax(0, 1fr);
+    padding: 5px 6px;
+  }
+  .compact-tournament-option span {
+    display: block;
+  }
+  .compact-tournament-option b,
+  .compact-tournament-option small {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .tournament-schedule-display,
+  .compact-payment-note {
+    font-size: 11px;
+    gap: 3px 8px;
+    padding: 6px 7px;
+  }
+  .compact-discount-box {
+    padding: 8px;
+  }
+  .compact-fee-summary {
+    font-size: 11px;
+  }
+  .registration-transfer-card,
+  .bulk-remove-card {
+    padding: 8px;
+  }
+  .registration-transfer-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .download-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .download-row button {
+    width: 100%;
+  }
+  .table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

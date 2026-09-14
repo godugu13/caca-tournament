@@ -2261,3 +2261,16 @@ This is a temporary performance workaround for the Register For page.
 - Dashboard's Registered Players button for CACA 9th Rolling Trophy uses the same current-registration endpoint.
 - Existing registrations under the real tournament ID are merged into the cache in a background refresh so the UI request itself is never held up by the slow Tournament lookup.
 - If the database lookup is slow, newly submitted registrations still appear immediately; older registrations join the list after the background refresh completes.
+
+
+## Step 29.31N - Registered Players Immediate Load + Super Admin Remove Fix
+
+- Current Rolling Trophy Registered Players now use a deterministic registration query; the endpoint no longer returns an empty list first while waiting for a background refresh.
+- Register For loads Registered Players as soon as the page opens.
+- When logged in as Admin/Super Admin, Register For uses the full current-registration endpoint so each player has the real registration ID needed by Remove / bulk Remove.
+- Super Admin PIN validation is handled before any tournament lookup, so Super Admin can soft-remove registrations saved under the temporary Rolling Trophy alias.
+- After a successful Remove, the row disappears immediately from the UI and the list is refreshed.
+- Dashboard automatically opens and loads the current Rolling Trophy Registered Players list after the tournament card loads.
+- Dashboard Registered Players also has an explicit Refresh action when the list is empty.
+- All player removal remains soft delete.
+- Added a compound MongoDB index declaration for tournamentId + recordStatus registration lookups.

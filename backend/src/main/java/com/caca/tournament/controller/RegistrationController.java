@@ -16,7 +16,6 @@ import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -32,7 +31,6 @@ public class RegistrationController {
     private static final LocalDate CURRENT_TOURNAMENT_DATE = LocalDate.of(2026, 10, 24);
     private volatile String currentTournamentRealId;
     private volatile List<Map<String, String>> currentPublicNamesCache = List.of();
-    private volatile boolean currentNamesRefreshRunning = false;
 
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {
@@ -47,32 +45,22 @@ public class RegistrationController {
 
     @GetMapping("/current/public-names")
     public List<Map<String, String>> currentPublicNames() {
-        refreshCurrentPublicNamesInBackground();
-        return currentPublicNamesCache;
+        // Fast deterministic path: current temporary registrations are queried directly.
+        // Do not wait for tournament lookup or background refresh.
+        List<Registration> current = repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D");
+        List<Map<String, String>> names = new ArrayList<>(toPublicNames(current));
+
+        // If legacy real-ID names have already been cached, merge them without blocking.
+        if (currentPublicNamesCache != null && !currentPublicNamesCache.isEmpty()) {
+            names.addAll(currentPublicNamesCache);
+        }
+        return names.stream().distinct().toList();
     }
 
-    private void refreshCurrentPublicNamesInBackground() {
-        if (currentNamesRefreshRunning) return;
-        currentNamesRefreshRunning = true;
-
-        CompletableFuture.runAsync(() -> {
-            try {
-                List<Registration> combined = new ArrayList<>(
-                        repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D")
-                );
-
-                String realId = resolveCurrentTournamentId();
-                if (realId != null && !realId.isBlank()) {
-                    combined.addAll(repository.findByTournamentIdAndRecordStatusNot(realId, "D"));
-                }
-
-                currentPublicNamesCache = toPublicNames(combined);
-            } catch (Exception ignored) {
-                // Keep the last successful in-memory list.
-            } finally {
-                currentNamesRefreshRunning = false;
-            }
-        });
+    @GetMapping("/current")
+    public List<Registration> currentRegistrations() {
+        // Full records (including registration IDs) for Admin/Super Admin actions.
+        return normalizeList(repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D"));
     }
 
     private List<Map<String, String>> toPublicNames(List<Registration> registrations) {
@@ -158,31 +146,30 @@ public class RegistrationController {
         return ResponseEntity.ok(Map.of("deleted", registrations.size(), "softDeleted", true));
     }
 
-    private String resolveCurrentTournamentId() {
-        if (currentTournamentRealId != null && !currentTournamentRealId.isBlank()) {
-            return currentTournamentRealId;
-        }
-        try {
-            currentTournamentRealId = tournamentRepository
-                    .findFirstByNameAndTournamentDate(CURRENT_TOURNAMENT_NAME, CURRENT_TOURNAMENT_DATE)
-                    .map(t -> t.getId())
-                    .orElse(null);
-        } catch (Exception ignored) {
-            currentTournamentRealId = null;
-        }
-        return currentTournamentRealId;
-    }
-
     private void softDelete(Registration registration, String pin) {
         registration.setRecordStatus("D"); registration.setAttended(false);
         registration.setDeletedAt(Instant.now().toString()); registration.setDeletedBy(normalizePin(pin));
         repository.save(registration);
         currentPublicNamesCache = List.of();
-        refreshCurrentPublicNamesInBackground();
     }
     private boolean isValidPin(String pin, String tournamentId) {
-        String normalized = normalizePin(pin); if ("1123".equals(normalized)) return true;
-        return tournamentRepository.findById(tournamentId).map(t -> normalized.equals(normalizePin(t.getAdminPin()))).orElse(false);
+        String normalized = normalizePin(pin);
+        if ("1123".equals(normalized)) return true;
+
+        if (CURRENT_REGISTRATION_ALIAS.equals(tournamentId)) {
+            try {
+                return tournamentRepository
+                        .findFirstByNameAndTournamentDate(CURRENT_TOURNAMENT_NAME, CURRENT_TOURNAMENT_DATE)
+                        .map(t -> normalized.equals(normalizePin(t.getAdminPin())))
+                        .orElse(false);
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        return tournamentRepository.findById(tournamentId)
+                .map(t -> normalized.equals(normalizePin(t.getAdminPin())))
+                .orElse(false);
     }
     private String normalizePin(String pin) { return pin == null ? "" : pin.replaceAll("[^0-9]", ""); }
     private void normalizePayment(Registration registration) {

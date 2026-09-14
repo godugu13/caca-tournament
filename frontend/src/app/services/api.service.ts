@@ -105,6 +105,7 @@ export class ApiService {
   registrations(tournamentId: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}`); }
   publicRegistrationNames(tournamentId: string): Observable<PublicRegistration[]> { return this.http.get<PublicRegistration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/public-names`); }
   currentPublicRegistrationNames(): Observable<PublicRegistration[]> { return this.http.get<PublicRegistration[]>(`${this.baseUrl}/registrations/current/public-names`); }
+  currentRegistrations(): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/current`); }
   registrationsByFormat(tournamentId: string, format: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/${format}`); }
   register(r: Registration): Observable<Registration> { return this.http.post<Registration>(`${this.baseUrl}/registrations`, r); }
   memberById(membershipId: string): Observable<Member> { return this.http.get<Member>(`${this.baseUrl}/members/${encodeURIComponent(membershipId)}`); }

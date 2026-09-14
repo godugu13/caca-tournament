@@ -385,7 +385,9 @@ export class RegistrationsComponent implements OnInit {
 
     const temporaryCurrentTournament = this.model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026';
     const request: any = temporaryCurrentTournament
-      ? this.api.currentPublicRegistrationNames()
+      ? (this.isAdmin()
+          ? this.api.currentRegistrations()
+          : this.api.currentPublicRegistrationNames())
       : (this.isAdmin()
           ? this.api.registrations(this.model.tournamentId)
           : this.api.publicRegistrationNames(this.model.tournamentId));
@@ -810,7 +812,15 @@ export class RegistrationsComponent implements OnInit {
     }
     if (!confirm(`Remove ${ids.length} selected player(s)?`)) return;
     this.api.deleteRegistrationsBulk(ids, pin).subscribe({
-      next: () => { this.selectedPlayerIds = {}; this.deletePinModalOpen=false; this.bulkRemovePin=''; this.loadPlayers(); },
+      next: () => {
+        const removed = new Set(ids);
+        this.players = (this.players || []).filter(p => !p.id || !removed.has(p.id));
+        this.selectedPlayerIds = {};
+        this.deletePinModalOpen = false;
+        this.bulkRemovePin = '';
+        this.deletePinError = '';
+        this.loadPlayers();
+      },
       error: err => { this.deletePinError=this.displayError(err); }
     });
   }

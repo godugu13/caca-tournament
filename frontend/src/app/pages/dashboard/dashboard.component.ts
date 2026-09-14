@@ -71,10 +71,7 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
 
         <div class="dashboard-player-list" *ngIf="playersOpen[item.tournament.id || '']">
           <span *ngIf="playersLoading[item.tournament.id || '']">Loading players…</span>
-          <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">
-            No registrations yet.
-            <button type="button" class="secondary small" (click)="reloadRegisteredPlayers(item.tournament)">Refresh</button>
-          </span>
+          <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
           <div *ngFor="let p of registeredPlayers[item.tournament.id || '']; let i=index">
             {{i+1}}. <b>{{p.playerName}}</b>
             <span *ngIf="p.partnerName"> / {{p.partnerName}}</span>
@@ -158,7 +155,6 @@ export class DashboardComponent implements OnInit {
           srrStarted: false
         }));
         this.splitTournaments();
-        this.preloadCurrentRegisteredPlayers();
 
         // Secondary enrichment only. If it is slow or fails, the lists above remain visible.
         this.api.dashboardTournaments().subscribe({
@@ -191,65 +187,13 @@ export class DashboardComponent implements OnInit {
     this.splitTournaments();
   }
 
-  private preloadCurrentRegisteredPlayers(): void {
-    const item = this.currentTournaments.find(x =>
-      (x.tournament.name || '').toLowerCase().includes('caca 9th rolling trophy')
-    );
-    const t = item?.tournament;
-    const id = t?.id || '';
-    if (!id || Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) return;
-
-    this.playersOpen[id] = true;
-    this.playersLoading[id] = true;
-    this.api.currentPublicRegistrationNames().subscribe({
-      next: players => {
-        this.registeredPlayers[id] = players || [];
-        this.playersLoading[id] = false;
-      },
-      error: () => {
-        this.registeredPlayers[id] = [];
-        this.playersLoading[id] = false;
-      }
-    });
-  }
-
-  reloadRegisteredPlayers(t: Tournament): void {
-    const id = t.id || '';
-    if (!id) return;
-
-    delete this.registeredPlayers[id];
-    this.playersOpen[id] = true;
-    this.playersLoading[id] = true;
-
-    const currentRegistrationTournament = (t.name || '').toLowerCase().includes('caca 9th rolling trophy');
-    const request = currentRegistrationTournament
-      ? this.api.currentPublicRegistrationNames()
-      : this.api.publicRegistrationNames(id);
-
-    request.subscribe({
-      next: players => {
-        this.registeredPlayers[id] = players || [];
-        this.playersLoading[id] = false;
-      },
-      error: () => {
-        this.registeredPlayers[id] = [];
-        this.playersLoading[id] = false;
-      }
-    });
-  }
-
   toggleRegisteredPlayers(t: Tournament): void {
     const id = t.id || '';
     if (!id) return;
     this.playersOpen[id] = !this.playersOpen[id];
-    if (!this.playersOpen[id] || Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) return;
+    if (!this.playersOpen[id] || this.registeredPlayers[id]) return;
     this.playersLoading[id] = true;
-    const currentRegistrationTournament = (t.name || '').toLowerCase().includes('caca 9th rolling trophy');
-    const request = currentRegistrationTournament
-      ? this.api.currentPublicRegistrationNames()
-      : this.api.publicRegistrationNames(id);
-
-    request.subscribe({
+    this.api.publicRegistrationNames(id).subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;

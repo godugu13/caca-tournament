@@ -4,14 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
 @Document("registrations")
-@CompoundIndex(name = "idx_registration_tournament_status", def = "{'tournamentId': 1, 'recordStatus': 1}")
 public class Registration {
     @Id
     private String id;

@@ -2250,3 +2250,14 @@ This is a temporary performance workaround for the Register For page.
   - October 24, 2026 • Doubles
 - `Register Another Player` resets the form without reloading tournament data.
 - The page no longer performs a Players View reload immediately after successful registration.
+
+
+## Step 29.31M - Registration Confirmation + Registered Players Recovery
+
+- Registration submit no longer performs any Tournament lookup. The temporary Rolling Trophy alias is saved directly so the success screen is not blocked by the slow tournament query.
+- Successful registration immediately shows the confirmation page from Step 29.31L.
+- New registrations are added to an in-memory Registered Players cache immediately after save.
+- Register For restores the Registered Players section in temporary mode.
+- Dashboard's Registered Players button for CACA 9th Rolling Trophy uses the same current-registration endpoint.
+- Existing registrations under the real tournament ID are merged into the cache in a background refresh so the UI request itself is never held up by the slow Tournament lookup.
+- If the database lookup is slow, newly submitted registrations still appear immediately; older registrations join the list after the background refresh completes.

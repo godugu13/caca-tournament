@@ -193,7 +193,12 @@ export class DashboardComponent implements OnInit {
     this.playersOpen[id] = !this.playersOpen[id];
     if (!this.playersOpen[id] || this.registeredPlayers[id]) return;
     this.playersLoading[id] = true;
-    this.api.publicRegistrationNames(id).subscribe({
+    const currentRegistrationTournament = (t.name || '').toLowerCase().includes('caca 9th rolling trophy');
+    const request = currentRegistrationTournament
+      ? this.api.currentPublicRegistrationNames()
+      : this.api.publicRegistrationNames(id);
+
+    request.subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;

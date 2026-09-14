@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -25,6 +27,13 @@ public class RegistrationController {
     private final MemberService memberService;
     private final TournamentRepository tournamentRepository;
 
+    private static final String CURRENT_REGISTRATION_ALIAS = "TEMP_CACA_9TH_ROLLING_TROPHY_2026";
+    private static final String CURRENT_TOURNAMENT_NAME = "CACA 9th Rolling Trophy - October 24, 2026";
+    private static final LocalDate CURRENT_TOURNAMENT_DATE = LocalDate.of(2026, 10, 24);
+    private volatile String currentTournamentRealId;
+    private volatile List<Map<String, String>> currentPublicNamesCache = List.of();
+    private volatile boolean currentNamesRefreshRunning = false;
+
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {
         return normalizeList(repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D"));
@@ -33,13 +42,48 @@ public class RegistrationController {
 
     @GetMapping("/tournament/{tournamentId}/public-names")
     public List<Map<String, String>> publicNames(@PathVariable String tournamentId) {
-        return repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D").stream()
+        return toPublicNames(repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D"));
+    }
+
+    @GetMapping("/current/public-names")
+    public List<Map<String, String>> currentPublicNames() {
+        refreshCurrentPublicNamesInBackground();
+        return currentPublicNamesCache;
+    }
+
+    private void refreshCurrentPublicNamesInBackground() {
+        if (currentNamesRefreshRunning) return;
+        currentNamesRefreshRunning = true;
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                List<Registration> combined = new ArrayList<>(
+                        repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D")
+                );
+
+                String realId = resolveCurrentTournamentId();
+                if (realId != null && !realId.isBlank()) {
+                    combined.addAll(repository.findByTournamentIdAndRecordStatusNot(realId, "D"));
+                }
+
+                currentPublicNamesCache = toPublicNames(combined);
+            } catch (Exception ignored) {
+                // Keep the last successful in-memory list.
+            } finally {
+                currentNamesRefreshRunning = false;
+            }
+        });
+    }
+
+    private List<Map<String, String>> toPublicNames(List<Registration> registrations) {
+        return registrations.stream()
                 .map(this::normalizeCsvMappedRegistration)
                 .map(r -> Map.of(
                         "playerName", safe(r.getPlayerName()),
                         "format", safe(r.getFormat()),
                         "partnerName", safe(r.getPartnerName())
                 ))
+                .distinct()
                 .toList();
     }
 
@@ -52,16 +96,10 @@ public class RegistrationController {
     public Registration register(@Valid @RequestBody Registration registration) {
         registration = normalizeCsvMappedRegistration(registration);
 
-        // Temporary Register For fast mode: the page does not query tournaments on load.
-        // Resolve the placeholder only when the user actually submits registration.
-        if ("TEMP_CACA_9TH_ROLLING_TROPHY_2026".equals(registration.getTournamentId())) {
-            Tournament tournament = tournamentRepository.findFirstByNameAndTournamentDate(
-                    "CACA 9th Rolling Trophy - October 24, 2026",
-                    LocalDate.of(2026, 10, 24)
-            ).orElseThrow(() -> new IllegalStateException(
-                    "CACA 9th Rolling Trophy tournament was not found. Please contact the organizer."
-            ));
-            registration.setTournamentId(tournament.getId());
+        // Temporary fast registration mode: do not query the tournament collection.
+        // The alias is intentionally saved so confirmation is not blocked by the slow tournament lookup.
+        if (CURRENT_REGISTRATION_ALIAS.equals(registration.getTournamentId())) {
+            registration.setTournamentId(CURRENT_REGISTRATION_ALIAS);
             registration.setFormat("Doubles");
         }
 
@@ -69,7 +107,20 @@ public class RegistrationController {
         // not repeated here; users can use the explicit Email Lookup before submit.
         normalizePayment(registration);
         registration.setRecordStatus("ACTIVE");
-        return repository.save(registration);
+        Registration saved = repository.save(registration);
+
+        if (CURRENT_REGISTRATION_ALIAS.equals(saved.getTournamentId())) {
+            List<Map<String, String>> updated = new ArrayList<>(currentPublicNamesCache);
+            updated.add(Map.of(
+                    "playerName", safe(saved.getPlayerName()),
+                    "format", safe(saved.getFormat()),
+                    "partnerName", safe(saved.getPartnerName())
+            ));
+            currentPublicNamesCache = updated.stream().distinct().toList();
+        } else {
+            currentPublicNamesCache = List.of();
+        }
+        return saved;
     }
 
     @PutMapping("/{id}/attendance")
@@ -107,10 +158,27 @@ public class RegistrationController {
         return ResponseEntity.ok(Map.of("deleted", registrations.size(), "softDeleted", true));
     }
 
+    private String resolveCurrentTournamentId() {
+        if (currentTournamentRealId != null && !currentTournamentRealId.isBlank()) {
+            return currentTournamentRealId;
+        }
+        try {
+            currentTournamentRealId = tournamentRepository
+                    .findFirstByNameAndTournamentDate(CURRENT_TOURNAMENT_NAME, CURRENT_TOURNAMENT_DATE)
+                    .map(t -> t.getId())
+                    .orElse(null);
+        } catch (Exception ignored) {
+            currentTournamentRealId = null;
+        }
+        return currentTournamentRealId;
+    }
+
     private void softDelete(Registration registration, String pin) {
         registration.setRecordStatus("D"); registration.setAttended(false);
         registration.setDeletedAt(Instant.now().toString()); registration.setDeletedBy(normalizePin(pin));
         repository.save(registration);
+        currentPublicNamesCache = List.of();
+        refreshCurrentPublicNamesInBackground();
     }
     private boolean isValidPin(String pin, String tournamentId) {
         String normalized = normalizePin(pin); if ("1123".equals(normalized)) return true;

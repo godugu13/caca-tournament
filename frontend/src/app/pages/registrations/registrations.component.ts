@@ -186,8 +186,11 @@ import { Tournament, Registration } from '../../models/models';
   </div>
   </ng-container>
 
-  <ng-container *ngIf="!registrationComplete && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
-  <h3>Players View</h3>
+  <ng-container *ngIf="!registrationComplete">
+  <h3>Registered Players</h3>
+  <div class="muted" *ngIf="model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
+    Registered names load in the background. Newly submitted registrations appear immediately.
+  </div>
   <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
     <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
@@ -311,8 +314,8 @@ export class RegistrationsComponent implements OnInit {
     this.tournamentsLoadError = '';
     this.updatePaymentByFinalFee();
 
-    // Intentionally do NOT call loadPlayers() here.
-    // That DB request was part of the long initial wait.
+    // Form is already usable; load registered names independently in the background.
+    this.loadPlayers();
   }
 
   private tournamentSortValue(t: Tournament): number {
@@ -379,12 +382,22 @@ export class RegistrationsComponent implements OnInit {
       this.players = [];
       return;
     }
-    const request: any = this.isAdmin()
-      ? this.api.registrations(this.model.tournamentId)
-      : this.api.publicRegistrationNames(this.model.tournamentId);
-    request.subscribe((players: any[]) => {
-      this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
-      this.selectedPlayerIds = {};
+
+    const temporaryCurrentTournament = this.model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026';
+    const request: any = temporaryCurrentTournament
+      ? this.api.currentPublicRegistrationNames()
+      : (this.isAdmin()
+          ? this.api.registrations(this.model.tournamentId)
+          : this.api.publicRegistrationNames(this.model.tournamentId));
+
+    request.subscribe({
+      next: (players: any[]) => {
+        this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
+        this.selectedPlayerIds = {};
+      },
+      error: () => {
+        this.players = [];
+      }
     });
   }
 

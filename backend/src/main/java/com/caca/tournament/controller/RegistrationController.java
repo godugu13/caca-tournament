@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -24,6 +26,11 @@ public class RegistrationController {
     private final RegistrationRepository repository;
     private final MemberService memberService;
     private final TournamentRepository tournamentRepository;
+
+    private static final String CURRENT_REGISTRATION_ALIAS = "TEMP_CACA_9TH_ROLLING_TROPHY_2026";
+    private static final String CURRENT_TOURNAMENT_NAME = "CACA 9th Rolling Trophy - October 24, 2026";
+    private static final LocalDate CURRENT_TOURNAMENT_DATE = LocalDate.of(2026, 10, 24);
+    private volatile String currentTournamentIdCache;
 
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {
@@ -43,6 +50,78 @@ public class RegistrationController {
                 .toList();
     }
 
+    /**
+     * Unified current Rolling Trophy registrations.
+     * During recovery this returns both the real tournament registrations and any
+     * temporary-alias registrations, so no player disappears from the UI.
+     */
+    @GetMapping("/current")
+    public List<Registration> currentRegistrations() {
+        String realId = resolveCurrentTournament().getId();
+        List<Registration> combined = new ArrayList<>(
+                repository.findByTournamentIdAndRecordStatusNot(realId, "D")
+        );
+        combined.addAll(repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D"));
+        return normalizeList(deduplicateById(combined));
+    }
+
+    @GetMapping("/current/public-names")
+    public List<Map<String, String>> currentPublicNames() {
+        return currentRegistrations().stream()
+                .map(r -> Map.of(
+                        "playerName", safe(r.getPlayerName()),
+                        "format", safe(r.getFormat()),
+                        "partnerName", safe(r.getPartnerName())
+                ))
+                .distinct()
+                .toList();
+    }
+
+    @GetMapping("/recovery/current/preview")
+    public ResponseEntity<?> currentRecoveryPreview(@RequestParam(defaultValue = "") String pin) {
+        if (!isSuperAdminPin(pin)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN is required"));
+        }
+        Tournament tournament = resolveCurrentTournament();
+        long aliasTotal = repository.findByTournamentId(CURRENT_REGISTRATION_ALIAS).size();
+        long aliasActive = repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D").size();
+        long realActive = repository.findByTournamentIdAndRecordStatusNot(tournament.getId(), "D").size();
+        return ResponseEntity.ok(Map.of(
+                "tournamentId", tournament.getId(),
+                "tournamentName", tournament.getName(),
+                "realActiveRegistrations", realActive,
+                "temporaryActiveRegistrations", aliasActive,
+                "temporaryTotalRegistrations", aliasTotal
+        ));
+    }
+
+    @PostMapping("/recovery/current")
+    public ResponseEntity<?> recoverCurrentRegistrations(@RequestParam(defaultValue = "") String pin) {
+        if (!isSuperAdminPin(pin)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN is required"));
+        }
+
+        Tournament tournament = resolveCurrentTournament();
+        List<Registration> temporary = repository.findByTournamentId(CURRENT_REGISTRATION_ALIAS);
+        for (Registration registration : temporary) {
+            registration.setTournamentId(tournament.getId());
+            if (registration.getFormat() == null || registration.getFormat().isBlank()) {
+                registration.setFormat("Doubles");
+            }
+        }
+        if (!temporary.isEmpty()) {
+            repository.saveAll(temporary);
+        }
+
+        long activeAfter = repository.findByTournamentIdAndRecordStatusNot(tournament.getId(), "D").size();
+        return ResponseEntity.ok(Map.of(
+                "recovered", temporary.size(),
+                "tournamentId", tournament.getId(),
+                "tournamentName", tournament.getName(),
+                "activeRegistrationsAfterRecovery", activeAfter
+        ));
+    }
+
     @GetMapping("/tournament/{tournamentId}/{format}")
     public List<Registration> byTournamentAndFormat(@PathVariable String tournamentId, @PathVariable String format) {
         return normalizeList(repository.findByTournamentIdAndFormatAndRecordStatusNot(tournamentId, format, "D"));
@@ -54,14 +133,8 @@ public class RegistrationController {
 
         // Temporary Register For fast mode: the page does not query tournaments on load.
         // Resolve the placeholder only when the user actually submits registration.
-        if ("TEMP_CACA_9TH_ROLLING_TROPHY_2026".equals(registration.getTournamentId())) {
-            Tournament tournament = tournamentRepository.findFirstByNameAndTournamentDate(
-                    "CACA 9th Rolling Trophy - October 24, 2026",
-                    LocalDate.of(2026, 10, 24)
-            ).orElseThrow(() -> new IllegalStateException(
-                    "CACA 9th Rolling Trophy tournament was not found. Please contact the organizer."
-            ));
-            registration.setTournamentId(tournament.getId());
+        if (CURRENT_REGISTRATION_ALIAS.equals(registration.getTournamentId())) {
+            registration.setTournamentId(resolveCurrentTournament().getId());
             registration.setFormat("Doubles");
         }
 
@@ -105,6 +178,39 @@ public class RegistrationController {
         if (!isValidPin(pin, registrations.get(0).getTournamentId())) return ResponseEntity.status(403).body(Map.of("message", "Invalid admin PIN"));
         registrations.forEach(r -> softDelete(r, pin));
         return ResponseEntity.ok(Map.of("deleted", registrations.size(), "softDeleted", true));
+    }
+
+    private Tournament resolveCurrentTournament() {
+        String cachedId = currentTournamentIdCache;
+        if (cachedId != null && !cachedId.isBlank()) {
+            Tournament cached = tournamentRepository.findById(cachedId).orElse(null);
+            if (cached != null) return cached;
+            currentTournamentIdCache = null;
+        }
+
+        Tournament tournament = tournamentRepository
+                .findFirstByNameAndTournamentDate(CURRENT_TOURNAMENT_NAME, CURRENT_TOURNAMENT_DATE)
+                .orElseThrow(() -> new IllegalStateException(
+                        "CACA 9th Rolling Trophy tournament was not found. Please contact the organizer."
+                ));
+        currentTournamentIdCache = tournament.getId();
+        return tournament;
+    }
+
+    private List<Registration> deduplicateById(List<Registration> registrations) {
+        Map<String, Registration> byId = new LinkedHashMap<>();
+        int noId = 0;
+        for (Registration registration : registrations) {
+            if (registration == null) continue;
+            String key = registration.getId();
+            if (key == null || key.isBlank()) key = "__noid_" + (++noId);
+            byId.putIfAbsent(key, registration);
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    private boolean isSuperAdminPin(String pin) {
+        return "1123".equals(normalizePin(pin));
     }
 
     private void softDelete(Registration registration, String pin) {

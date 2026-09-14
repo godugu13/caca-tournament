@@ -186,8 +186,16 @@ import { Tournament, Registration } from '../../models/models';
   </div>
   </ng-container>
 
-  <ng-container *ngIf="!registrationComplete && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
-  <h3>Players View</h3>
+  <ng-container *ngIf="!registrationComplete">
+  <h3>Registered Players</h3>
+  <div class="card bulk-remove-card" *ngIf="isSuperAdmin()">
+    <b>Registration Recovery</b>
+    <small>Use once to move any temporary Rolling Trophy registrations back to the real tournament.</small>
+    <button type="button" class="secondary" (click)="recoverRegistrations()" [disabled]="recoveryRunning">
+      {{recoveryRunning ? 'Recovering…' : 'Repair Registration Data'}}
+    </button>
+    <span class="ok" *ngIf="recoveryMessage">{{recoveryMessage}}</span>
+  </div>
   <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
     <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
@@ -258,6 +266,8 @@ export class RegistrationsComponent implements OnInit {
   registrationComplete = false;
   registeredDisplayName = '';
   registrationSubmitting = false;
+  recoveryRunning = false;
+  recoveryMessage = '';
 
   model: Registration = {
     tournamentId: '',
@@ -279,6 +289,10 @@ export class RegistrationsComponent implements OnInit {
   isAdmin(): boolean {
     return sessionStorage.getItem('cacaAdminUnlocked') === 'true'
       && this.adminAccess.isAdmin();
+  }
+
+  isSuperAdmin(): boolean {
+    return this.adminAccess.isSuperAdmin();
   }
 
   ngOnInit() {
@@ -311,8 +325,8 @@ export class RegistrationsComponent implements OnInit {
     this.tournamentsLoadError = '';
     this.updatePaymentByFinalFee();
 
-    // Intentionally do NOT call loadPlayers() here.
-    // That DB request was part of the long initial wait.
+    // Registration form is already ready. Load the unified player list independently.
+    this.loadPlayers();
   }
 
   private tournamentSortValue(t: Tournament): number {
@@ -364,9 +378,7 @@ export class RegistrationsComponent implements OnInit {
     this.model.gender = '';
     this.updatePaymentByFinalFee();
     this.memberMessage = '';
-    if (this.model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026') {
-      this.loadPlayers();
-    }
+    this.loadPlayers();
   }
 
   onFormatChange() {
@@ -379,12 +391,20 @@ export class RegistrationsComponent implements OnInit {
       this.players = [];
       return;
     }
-    const request: any = this.isAdmin()
-      ? this.api.registrations(this.model.tournamentId)
-      : this.api.publicRegistrationNames(this.model.tournamentId);
-    request.subscribe((players: any[]) => {
-      this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
-      this.selectedPlayerIds = {};
+
+    const isCurrentRollingTrophy = this.model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026';
+    const request: any = isCurrentRollingTrophy
+      ? (this.isAdmin() ? this.api.currentRegistrations() : this.api.currentPublicRegistrationNames())
+      : (this.isAdmin() ? this.api.registrations(this.model.tournamentId) : this.api.publicRegistrationNames(this.model.tournamentId));
+
+    request.subscribe({
+      next: (players: any[]) => {
+        this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
+        this.selectedPlayerIds = {};
+      },
+      error: (err: any) => {
+        this.registrationErrorMessage = this.displayError(err);
+      }
     });
   }
 
@@ -457,7 +477,7 @@ export class RegistrationsComponent implements OnInit {
         this.registrationComplete = true;
         window.scrollTo({top: 0, behavior: 'smooth'});
       },
-      error: err => {
+      error: (err: any) => {
         this.registrationSubmitting = false;
         this.registrationErrorMessage = this.displayError(err);
       }
@@ -479,6 +499,52 @@ export class RegistrationsComponent implements OnInit {
     this.model.discountAmount = 0;
     this.model.finalFee = this.finalFee();
     this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : 'PENDING';
+  }
+
+  recoverRegistrations() {
+    if (!this.isSuperAdmin() || this.recoveryRunning) return;
+    const pin = this.adminAccess.currentPin();
+    this.recoveryMessage = '';
+    this.registrationErrorMessage = '';
+    this.recoveryRunning = true;
+
+    this.api.currentRegistrationRecoveryPreview(pin).subscribe({
+      next: preview => {
+        const temporaryCount = Number(preview?.temporaryTotalRegistrations || 0);
+        const realCount = Number(preview?.realActiveRegistrations || 0);
+        const message = temporaryCount > 0
+          ? `Recovery found ${temporaryCount} temporary registration(s) and ${realCount} active registration(s) already on the real tournament. Move the temporary registration(s) now?`
+          : `No temporary registrations were found. The real tournament currently has ${realCount} active registration(s). Refresh the player list?`;
+
+        if (temporaryCount > 0 && !confirm(message)) {
+          this.recoveryRunning = false;
+          return;
+        }
+
+        if (temporaryCount === 0) {
+          this.recoveryMessage = `No repair needed. ${realCount} active registration(s) are already on the real tournament.`;
+          this.recoveryRunning = false;
+          this.loadPlayers();
+          return;
+        }
+
+        this.api.recoverCurrentRegistrations(pin).subscribe({
+          next: result => {
+            this.recoveryMessage = `Recovery complete. ${result?.recovered || 0} registration(s) moved to the real tournament. ${result?.activeRegistrationsAfterRecovery || 0} active registration(s) are now together.`;
+            this.recoveryRunning = false;
+            this.loadPlayers();
+          },
+          error: (err: any) => {
+            this.recoveryRunning = false;
+            this.registrationErrorMessage = this.displayError(err);
+          }
+        });
+      },
+      error: (err: any) => {
+        this.recoveryRunning = false;
+        this.registrationErrorMessage = this.displayError(err);
+      }
+    });
   }
 
   normalizeSelectedTournamentDiscounts() {
@@ -630,7 +696,7 @@ export class RegistrationsComponent implements OnInit {
         input.value = '';
         this.loadPlayers();
       },
-      error: err => {
+      error: (err: any) => {
         this.rosterUploadInProgress = false;
         input.value = '';
         this.registrationErrorMessage = this.displayError(err);
@@ -654,7 +720,7 @@ export class RegistrationsComponent implements OnInit {
         link.click();
         URL.revokeObjectURL(link.href);
       },
-      error: err => this.registrationErrorMessage = this.displayError(err)
+      error: (err: any) => this.registrationErrorMessage = this.displayError(err)
     });
   }
 
@@ -798,7 +864,7 @@ export class RegistrationsComponent implements OnInit {
     if (!confirm(`Remove ${ids.length} selected player(s)?`)) return;
     this.api.deleteRegistrationsBulk(ids, pin).subscribe({
       next: () => { this.selectedPlayerIds = {}; this.deletePinModalOpen=false; this.bulkRemovePin=''; this.loadPlayers(); },
-      error: err => { this.deletePinError=this.displayError(err); }
+      error: (err: any) => { this.deletePinError=this.displayError(err); }
     });
   }
 
@@ -807,7 +873,7 @@ export class RegistrationsComponent implements OnInit {
     const status = (p.paymentStatus || '').toUpperCase() === 'PAID' ? 'PENDING' : 'PAID';
     this.api.updatePaymentStatus(p.id, status).subscribe({
       next: () => this.loadPlayers(),
-      error: err => alert(this.displayError(err))
+      error: (err: any) => alert(this.displayError(err))
     });
   }
 

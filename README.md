@@ -2250,3 +2250,26 @@ This is a temporary performance workaround for the Register For page.
   - October 24, 2026 • Doubles
 - `Register Another Player` resets the form without reloading tournament data.
 - The page no longer performs a Players View reload immediately after successful registration.
+
+
+## Step 29.31O - Rolling Trophy Registration Recovery
+
+Built from Step 29.31L, not from 29.31M/29.31N.
+
+### Existing data APIs
+- GET `/api/registrations/tournament/{tournamentId}` - active registrations for a tournament.
+- GET `/api/registrations/tournament/{tournamentId}/public-names` - public names only.
+- GET `/api/tournaments/catalog` - active visible tournaments.
+
+### Recovery APIs added
+- GET `/api/registrations/current` - unified active registrations from the real Rolling Trophy ID plus the temporary alias.
+- GET `/api/registrations/current/public-names` - privacy-safe unified names.
+- GET `/api/registrations/recovery/current/preview?pin=...` - Super Admin preview of real vs temporary registration counts.
+- POST `/api/registrations/recovery/current?pin=...` - Super Admin one-time migration of all temporary registrations to the real tournament ID.
+
+### Behavior
+- Future Register submissions still display the hardcoded tournament immediately, but backend resolves the placeholder to the real tournament ID before saving.
+- Register For and Dashboard read a unified player list, so older real-ID registrations and any not-yet-migrated temporary registrations appear together.
+- Super Admin gets a `Repair Registration Data` button on Register For.
+- Recovery preserves registration records and IDs; it updates only `tournamentId` from the temporary alias to the real tournament ID. Soft-deleted records stay soft-deleted.
+- Existing success confirmation from 29.31L is preserved.

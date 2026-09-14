@@ -155,6 +155,7 @@ export class DashboardComponent implements OnInit {
           srrStarted: false
         }));
         this.splitTournaments();
+        this.preloadCurrentPlayers();
 
         // Secondary enrichment only. If it is slow or fails, the lists above remain visible.
         this.api.dashboardTournaments().subscribe({
@@ -187,13 +188,39 @@ export class DashboardComponent implements OnInit {
     this.splitTournaments();
   }
 
+  private preloadCurrentPlayers(): void {
+    const item = this.currentTournaments.find(x =>
+      (x.tournament.name || '').toLowerCase().includes('caca 9th rolling trophy')
+    );
+    const t = item?.tournament;
+    const id = t?.id || '';
+    if (!id || Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) return;
+
+    this.playersLoading[id] = true;
+    this.api.currentPublicRegistrationNames().subscribe({
+      next: players => {
+        this.registeredPlayers[id] = players || [];
+        this.playersLoading[id] = false;
+      },
+      error: () => {
+        this.registeredPlayers[id] = [];
+        this.playersLoading[id] = false;
+      }
+    });
+  }
+
   toggleRegisteredPlayers(t: Tournament): void {
     const id = t.id || '';
     if (!id) return;
     this.playersOpen[id] = !this.playersOpen[id];
     if (!this.playersOpen[id] || this.registeredPlayers[id]) return;
     this.playersLoading[id] = true;
-    this.api.publicRegistrationNames(id).subscribe({
+    const isCurrentRollingTrophy = (t.name || '').toLowerCase().includes('caca 9th rolling trophy');
+    const request = isCurrentRollingTrophy
+      ? this.api.currentPublicRegistrationNames()
+      : this.api.publicRegistrationNames(id);
+
+    request.subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;

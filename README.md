@@ -2236,3 +2236,17 @@ This is a temporary performance workaround for the Register For page.
 - The initial public Players View / Spots Left query is skipped so users can immediately enter Email, Name, Phone and Partner.
 - On Register submit only, the backend resolves the temporary placeholder to the real tournament using tournament name + date, then saves the registration with the real MongoDB tournament ID.
 - Admin tournament management, Game Day, Dashboard, scoring and other pages are unchanged.
+
+
+## Step 29.31L - Fast Registration Submit + Success Confirmation
+
+- Registration remains in temporary hardcoded-tournament mode from Step 29.31K, so Register For opens without querying tournaments.
+- Registration submit no longer repeats MemberService lookup/create work. Email Lookup remains available separately when the user wants member auto-fill.
+- Critical submit path is reduced to tournament placeholder resolution + registration save.
+- Register button shows `Registering…` while the save is in progress to prevent duplicate clicks.
+- After a successful save, the form is replaced with a confirmation screen:
+  - `You have been registered successfully!`
+  - `Practice well and see you on tournament day!`
+  - October 24, 2026 • Doubles
+- `Register Another Player` resets the form without reloading tournament data.
+- The page no longer performs a Players View reload immediately after successful registration.

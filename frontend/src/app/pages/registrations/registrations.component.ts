@@ -15,7 +15,16 @@ import { Tournament, Registration } from '../../models/models';
 <section class="registration-page">
   <h2>Register For Tournament</h2>
 
-  <div class="card registration-card">
+  <div class="card registration-success-card" *ngIf="registrationComplete">
+    <div class="registration-success-icon">✓</div>
+    <h2>You have been registered successfully!</h2>
+    <p><b>{{registeredDisplayName}}</b>, your registration for <b>CACA 9th Rolling Trophy</b> is confirmed.</p>
+    <p class="practice-message">Practice well and see you on tournament day!</p>
+    <p class="muted">October 24, 2026 • Doubles</p>
+    <button type="button" class="secondary" (click)="registerAnother()">Register Another Player</button>
+  </div>
+
+  <div class="card registration-card" *ngIf="!registrationComplete">
 
     <div class="tournament-schedule-display" *ngIf="selectedTournament">
       <b>Tournament Schedule</b>
@@ -146,11 +155,13 @@ import { Tournament, Registration } from '../../models/models';
     <p class="warning" *ngIf="registrationErrorMessage">{{registrationErrorMessage}}</p>
 
     <div class="center-actions">
-      <button type="button" (click)="register()">Register</button>
+      <button type="button" (click)="register()" [disabled]="registrationSubmitting">
+        {{registrationSubmitting ? 'Registering…' : 'Register'}}
+      </button>
     </div>
   </div>
 
-  <ng-container *ngIf="isAdmin() && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
+  <ng-container *ngIf="!registrationComplete && isAdmin() && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
   <h3>Registration Import / Export</h3>
   <div class="card upload-card registration-transfer-card">
     <div class="registration-transfer-grid">
@@ -175,7 +186,7 @@ import { Tournament, Registration } from '../../models/models';
   </div>
   </ng-container>
 
-  <ng-container *ngIf="model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
+  <ng-container *ngIf="!registrationComplete && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
   <h3>Players View</h3>
   <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
@@ -244,6 +255,9 @@ export class RegistrationsComponent implements OnInit {
   rosterUploadInProgress = false;
   tournamentsLoading = true;
   tournamentsLoadError = '';
+  registrationComplete = false;
+  registeredDisplayName = '';
+  registrationSubmitting = false;
 
   model: Registration = {
     tournamentId: '',
@@ -424,30 +438,47 @@ export class RegistrationsComponent implements OnInit {
       teamMemberNames: []
     };
 
-    const requests = this.selectedFormats.map(fmt => this.api.register({...payload, format: fmt, partnerName: (fmt === 'Doubles' || fmt === 'Mixed Doubles') ? this.model.partnerName : ''}));
+    this.registrationSubmitting = true;
+    const requests = this.selectedFormats.map(fmt =>
+      this.api.register({
+        ...payload,
+        format: fmt,
+        partnerName: (fmt === 'Doubles' || fmt === 'Mixed Doubles') ? this.model.partnerName : ''
+      })
+    );
+
     forkJoin(requests).subscribe({
       next: savedList => {
         const saved = savedList[0];
-        this.registrationSuccessMessage = `${this.displayPlayerName(saved)} registered successfully for ${this.selectedFormats.join(', ')}.`;
-        const tid = this.model.tournamentId;
-        const fmt = this.model.format;
-        this.model = {
-          tournamentId: tid,
-          playerName: '',
-          email: '',
-          phone: '',
-          partnerName: '',
-          format: fmt,
-          paymentStatus: this.finalFee() <= 0 ? 'PAID' : 'PENDING',
-          teamMemberNames: [],
-          discountType: '',
-          discountAmount: 0,
-          finalFee: 0
-        };
-        this.loadPlayers();
+        this.registeredDisplayName = this.displayPlayerName(saved) || this.model.playerName;
+        this.registrationSuccessMessage = '';
+        this.registrationErrorMessage = '';
+        this.registrationSubmitting = false;
+        this.registrationComplete = true;
+        window.scrollTo({top: 0, behavior: 'smooth'});
       },
-      error: err => this.registrationErrorMessage = this.displayError(err)
+      error: err => {
+        this.registrationSubmitting = false;
+        this.registrationErrorMessage = this.displayError(err);
+      }
     });
+  }
+
+  registerAnother() {
+    this.registrationComplete = false;
+    this.registeredDisplayName = '';
+    this.registrationSuccessMessage = '';
+    this.registrationErrorMessage = '';
+    this.model.playerName = '';
+    this.model.email = '';
+    this.model.phone = '';
+    this.model.partnerName = '';
+    this.model.discountType = '';
+    this.model.discountName = '';
+    this.model.gender = '';
+    this.model.discountAmount = 0;
+    this.model.finalFee = this.finalFee();
+    this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : 'PENDING';
   }
 
   normalizeSelectedTournamentDiscounts() {

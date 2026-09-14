@@ -65,7 +65,8 @@ public class RegistrationController {
             registration.setFormat("Doubles");
         }
 
-        memberService.applyMemberToRegistration(registration);
+        // Registration is the critical path. Member lookup/create is intentionally
+        // not repeated here; users can use the explicit Email Lookup before submit.
         normalizePayment(registration);
         registration.setRecordStatus("ACTIVE");
         return repository.save(registration);

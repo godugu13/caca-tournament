@@ -6,4 +6,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface TournamentRepository extends MongoRepository<Tournament, String> {
     java.util.List<com.caca.tournament.model.Tournament> findByAdminPin(String adminPin);
     boolean existsByAdminPin(String adminPin);
+    java.util.Optional<com.caca.tournament.model.Tournament> findFirstByNameAndTournamentDate(
+            String name,
+            java.time.LocalDate tournamentDate
+    );
 }

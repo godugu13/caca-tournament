@@ -2218,3 +2218,21 @@ The application header also requested Dashboard metadata, and Register For re-re
 - Tournament cache is automatically cleared after tournament create/edit/remove/restore/finalize/reopen/hide/show.
 - Dashboard match metadata cache is cleared after SRR/knockout generation or round removal.
 - Step 29.31I compact registration/mobile UI remains unchanged.
+
+
+## Step 29.31K - Temporary Hardcoded Registration Tournament
+
+This is a temporary performance workaround for the Register For page.
+
+- Register For no longer calls the tournament database when the page opens.
+- It immediately displays:
+  - CACA 9th Rolling Trophy - October 24, 2026
+  - Date: October 24, 2026
+  - Time: 10:00 AM - 7:00 PM
+  - Venue: 41865 Destiny Dr, Aldie, VA 20105
+  - Format: Doubles
+  - Registration Fee: $30
+- Format stays read-only as Doubles.
+- The initial public Players View / Spots Left query is skipped so users can immediately enter Email, Name, Phone and Partner.
+- On Register submit only, the backend resolves the temporary placeholder to the real tournament using tournament name + date, then saves the registration with the real MongoDB tournament ID.
+- Admin tournament management, Game Day, Dashboard, scoring and other pages are unchanged.

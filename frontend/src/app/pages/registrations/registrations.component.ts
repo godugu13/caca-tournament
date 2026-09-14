@@ -27,7 +27,7 @@ import { Tournament, Registration } from '../../models/models';
     <div class="payment-note compact-payment-note">
       <span class="warning-line">Payment required to confirm registration.</span>
       <span>Base Fee: <b>{{ selectedTournament?.registrationFee || 0 | currency:'USD':'symbol':'1.0-2' }}</b></span>
-      <span *ngIf="selectedTournament?.totalNumberOfPlayers">Spots Left: <b>{{spotsLeft()}}</b> / {{selectedTournament.totalNumberOfPlayers}}</span>
+      <span *ngIf="selectedTournament?.totalNumberOfPlayers && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">Spots Left: <b>{{spotsLeft()}}</b> / {{selectedTournament.totalNumberOfPlayers}}</span>
       <span>Final Fee: <b>{{finalFee() | currency:'USD':'symbol':'1.0-2'}}</b></span>
       <span>Zelle: <b>cacafunds&#64;gmail.com</b></span>
     </div>
@@ -150,7 +150,7 @@ import { Tournament, Registration } from '../../models/models';
     </div>
   </div>
 
-  <ng-container *ngIf="isAdmin()">
+  <ng-container *ngIf="isAdmin() && model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
   <h3>Registration Import / Export</h3>
   <div class="card upload-card registration-transfer-card">
     <div class="registration-transfer-grid">
@@ -175,6 +175,7 @@ import { Tournament, Registration } from '../../models/models';
   </div>
   </ng-container>
 
+  <ng-container *ngIf="model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026'">
   <h3>Players View</h3>
   <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
@@ -221,6 +222,7 @@ import { Tournament, Registration } from '../../models/models';
       </tbody>
     </table>
   </div>
+</ng-container>
 <div class="modal-backdrop" *ngIf="deletePinModalOpen"><div class="delete-pin-modal"><h3>Admin PIN</h3><input type="password" inputmode="numeric" maxlength="4" [(ngModel)]="bulkRemovePin" placeholder="4-digit PIN"><div class="modal-actions"><button type="button" class="danger" (click)="confirmDeleteWithPin()">Confirm Delete</button><button type="button" class="secondary" (click)="deletePinModalOpen=false">Cancel</button></div><p class="warning" *ngIf="deletePinError">{{deletePinError}}</p></div></div>
 </section>
 `
@@ -266,40 +268,37 @@ export class RegistrationsComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.tournamentsLoading = true;
+    // TEMPORARY FAST MODE:
+    // Do not query the tournament collection when opening Register For.
+    const hardcodedTournament: Tournament = {
+      id: 'TEMP_CACA_9TH_ROLLING_TROPHY_2026',
+      name: 'CACA 9th Rolling Trophy - October 24, 2026',
+      tournamentType: 'Doubles',
+      tournamentDate: '2026-10-24',
+      tournamentStartTime: '10:00',
+      tournamentEndTime: '19:00',
+      registrationFee: 30,
+      address: '41865 Destiny Dr, Aldie, VA 20105',
+      totalNumberOfPlayers: 32,
+      srrRounds: 5,
+      knockoutRounds: 1,
+      formats: ['Doubles'],
+      status: 'OPEN',
+      discountOptions: []
+    };
+
+    this.tournaments = [hardcodedTournament];
+    this.selectedTournament = hardcodedTournament;
+    this.model.tournamentId = hardcodedTournament.id || '';
+    this.availableFormats = ['Doubles'];
+    this.model.format = 'Doubles';
+    this.selectedFormats = ['Doubles'];
+    this.tournamentsLoading = false;
     this.tournamentsLoadError = '';
+    this.updatePaymentByFinalFee();
 
-    const tournamentRequest = this.isAdmin()
-      ? this.api.tournamentsByPin(this.adminAccess.currentPin())
-      : this.api.tournaments();
-
-    tournamentRequest.subscribe({
-      next: tournaments => {
-        this.tournaments = (tournaments || [])
-          .filter(t => {
-            const completed = (t.status || '').toUpperCase() === 'COMPLETED';
-            const hidden = !!t.hiddenFromDashboard;
-            return !completed && (this.isAdmin() || !hidden);
-          })
-          .sort((a,b) => this.tournamentSortValue(a) - this.tournamentSortValue(b));
-
-        this.tournamentsLoading = false;
-
-        const queryTournamentId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
-        if (queryTournamentId && this.tournaments.some(t => t.id === queryTournamentId)) {
-          this.model.tournamentId = queryTournamentId;
-          this.onTournamentChange();
-        } else if (this.tournaments.length === 1) {
-          this.model.tournamentId = this.tournaments[0].id || '';
-          this.onTournamentChange();
-        }
-      },
-      error: err => {
-        this.tournaments = [];
-        this.tournamentsLoading = false;
-        this.tournamentsLoadError = err?.error?.message || err?.message || 'Unable to load tournaments. Please try again.';
-      }
-    });
+    // Intentionally do NOT call loadPlayers() here.
+    // That DB request was part of the long initial wait.
   }
 
   private tournamentSortValue(t: Tournament): number {
@@ -351,7 +350,9 @@ export class RegistrationsComponent implements OnInit {
     this.model.gender = '';
     this.updatePaymentByFinalFee();
     this.memberMessage = '';
-    this.loadPlayers();
+    if (this.model.tournamentId !== 'TEMP_CACA_9TH_ROLLING_TROPHY_2026') {
+      this.loadPlayers();
+    }
   }
 
   onFormatChange() {

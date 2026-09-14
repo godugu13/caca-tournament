@@ -1,5 +1,7 @@
 package com.caca.tournament.controller;
 
+import com.caca.tournament.model.Tournament;
+
 import com.caca.tournament.model.Registration;
 import com.caca.tournament.repository.RegistrationRepository;
 import com.caca.tournament.repository.TournamentRepository;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -48,6 +51,20 @@ public class RegistrationController {
     @PostMapping
     public Registration register(@Valid @RequestBody Registration registration) {
         registration = normalizeCsvMappedRegistration(registration);
+
+        // Temporary Register For fast mode: the page does not query tournaments on load.
+        // Resolve the placeholder only when the user actually submits registration.
+        if ("TEMP_CACA_9TH_ROLLING_TROPHY_2026".equals(registration.getTournamentId())) {
+            Tournament tournament = tournamentRepository.findFirstByNameAndTournamentDate(
+                    "CACA 9th Rolling Trophy - October 24, 2026",
+                    LocalDate.of(2026, 10, 24)
+            ).orElseThrow(() -> new IllegalStateException(
+                    "CACA 9th Rolling Trophy tournament was not found. Please contact the organizer."
+            ));
+            registration.setTournamentId(tournament.getId());
+            registration.setFormat("Doubles");
+        }
+
         memberService.applyMemberToRegistration(registration);
         normalizePayment(registration);
         registration.setRecordStatus("ACTIVE");

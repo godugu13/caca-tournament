@@ -2299,3 +2299,13 @@ Built from Step 29.31O1. Backend recovery behavior is unchanged.
 - When the backend eventually confirms the save, Registered Players cache is refreshed.
 - If the backend actually returns an error, the submitted payload is retained in browser localStorage as `caca.pendingRegistration` for troubleshooting instead of silently discarding the user's entered data.
 - This does not claim that MongoDB has already committed the record; the screen says the registration request was received/submitted.
+
+
+## Step 29.31T - Dashboard Team Buttons Only
+
+- Dashboard Registered Players display is changed to team buttons for Doubles.
+- Each button shows `Player + Partner`.
+- If reciprocal registrations exist (`A + B` and `B + A`), Dashboard recognizes them as the same team and shows only one button.
+- If a partner is still TBD, the button shows `Player + TBD`.
+- Register For remains unchanged and continues showing individual registration rows.
+- No registration, backend, recovery, scoring, standings, or tournament behavior was changed from Step 29.31S.

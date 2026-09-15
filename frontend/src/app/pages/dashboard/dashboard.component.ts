@@ -72,10 +72,14 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
         <div class="dashboard-player-list" *ngIf="playersOpen[item.tournament.id || '']">
           <span *ngIf="playersLoading[item.tournament.id || '']">Loading players…</span>
           <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
-          <div *ngFor="let p of registeredPlayers[item.tournament.id || '']; let i=index">
-            {{i+1}}. <b>{{p.playerName}}</b>
-            <span *ngIf="p.partnerName"> / {{p.partnerName}}</span>
-            <small *ngIf="p.format"> • {{p.format}}</small>
+          <div class="dashboard-team-buttons" *ngIf="!playersLoading[item.tournament.id || '']">
+            <button type="button" class="dashboard-team-button"
+                    *ngFor="let team of registeredTeams(item.tournament.id || ''); let i=index">
+              <span class="team-number">{{i+1}}</span>
+              <b>{{team.player1}}</b>
+              <span class="team-separator"> + </span>
+              <b>{{team.player2}}</b>
+            </button>
           </div>
         </div>
       </div>
@@ -250,6 +254,37 @@ export class DashboardComponent implements OnInit {
         this.playersLoading[id] = false;
       }
     });
+  }
+
+  registeredTeams(tournamentId: string): {player1: string; player2: string}[] {
+    const players = this.registeredPlayers[tournamentId] || [];
+    const teams: {player1: string; player2: string}[] = [];
+    const seen = new Set<string>();
+
+    for (const registration of players) {
+      const player1 = String(registration.playerName || '').trim();
+      const player2 = String(registration.partnerName || '').trim();
+
+      if (!player1) continue;
+
+      // Dashboard is team-oriented for Doubles. If the same team was entered
+      // from both partners, normalize A+B and B+A to one team button.
+      const normalized1 = player1.toLowerCase();
+      const normalized2 = player2.toLowerCase();
+      const key = player2
+        ? [normalized1, normalized2].sort().join('||')
+        : `single||${normalized1}`;
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      teams.push({
+        player1,
+        player2: player2 || 'TBD'
+      });
+    }
+
+    return teams;
   }
 
   private splitTournaments(): void {

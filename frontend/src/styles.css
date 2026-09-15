@@ -3036,3 +3036,37 @@ h1, h2, h3,
   }
   .practice-message { font-size: 15px; }
 }
+
+/* Step 29.31T: Dashboard team-only registered player display */
+.dashboard-team-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 !important;
+  border-bottom: 0 !important;
+}
+.dashboard-player-list .dashboard-team-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid #9ecfe8;
+  border-radius: 9px;
+  background: #eef8fd;
+  color: #004f78;
+  font: inherit;
+  cursor: default;
+  box-shadow: none;
+}
+.dashboard-player-list .dashboard-team-button:hover {
+  transform: none;
+}
+.dashboard-team-button .team-number {
+  font-weight: 700;
+  margin-right: 3px;
+}
+.dashboard-team-button .team-separator {
+  font-weight: 700;
+}

@@ -73,13 +73,15 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
           <span *ngIf="playersLoading[item.tournament.id || '']">Loading players…</span>
           <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
           <div class="dashboard-team-buttons" *ngIf="!playersLoading[item.tournament.id || '']">
-            <button type="button" class="dashboard-team-button"
-                    *ngFor="let team of registeredTeams(item.tournament.id || ''); let i=index">
+            <div class="dashboard-team-button"
+                 *ngFor="let team of registeredTeams(item.tournament.id || ''); let i=index"
+                 [class.team-alt]="i % 2 === 1">
               <span class="team-number">{{i+1}}</span>
-              <b>{{team.player1}}</b>
-              <span class="team-separator"> + </span>
-              <b>{{team.player2}}</b>
-            </button>
+              <span class="team-names">
+                <b><span class="team-dot">•</span>{{team.player1}}</b>
+                <b><span class="team-dot">•</span>{{team.player2}}</b>
+              </span>
+            </div>
           </div>
         </div>
       </div>

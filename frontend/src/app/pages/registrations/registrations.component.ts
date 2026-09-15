@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, NgFor, NgIf } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, timeout } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { AdminAccessService } from '../../services/admin-access.service';
 import { Tournament, Registration } from '../../models/models';
@@ -500,7 +500,7 @@ export class RegistrationsComponent implements OnInit {
         ...payload,
         format: fmt,
         partnerName: (fmt === 'Doubles' || fmt === 'Mixed Doubles') ? this.model.partnerName : ''
-      })
+      }).pipe(timeout(30000))
     );
 
     forkJoin(requests).subscribe({
@@ -515,7 +515,9 @@ export class RegistrationsComponent implements OnInit {
       },
       error: (err: any) => {
         this.registrationSubmitting = false;
-        this.registrationErrorMessage = this.displayError(err);
+        this.registrationErrorMessage = err?.name === 'TimeoutError'
+          ? 'Registration server did not respond within 30 seconds. Please do not submit again yet; refresh Registered Players first to check whether the registration was saved.'
+          : this.displayError(err);
       }
     });
   }

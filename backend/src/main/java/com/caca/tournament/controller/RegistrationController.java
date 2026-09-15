@@ -134,7 +134,10 @@ public class RegistrationController {
         // Temporary Register For fast mode: the page does not query tournaments on load.
         // Resolve the placeholder only when the user actually submits registration.
         if (CURRENT_REGISTRATION_ALIAS.equals(registration.getTournamentId())) {
-            registration.setTournamentId(resolveCurrentTournament().getId());
+            // Critical registration path: do NOT query the Tournament collection here.
+            // Save immediately under the current alias. Recovery/unified APIs already
+            // merge alias + real tournament records for display/admin operations.
+            registration.setTournamentId(CURRENT_REGISTRATION_ALIAS);
             registration.setFormat("Doubles");
         }
 

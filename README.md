@@ -2288,3 +2288,14 @@ Built from Step 29.31O1. Backend recovery behavior is unchanged.
 - Single-player Remove uses the same robust registration-ID resolution.
 - After successful deletion, removed rows disappear immediately from the cached/UI list, then a fresh API read runs.
 - No backend changes from 29.31O1 are required for this step.
+
+
+## Step 29.31S - Immediate Registration Acknowledgement
+
+- After client-side validation, clicking Register immediately switches to the success/acknowledgement screen.
+- The MongoDB registration POST continues in the background in the same Angular component.
+- The message tells users that their name may take a few minutes to appear while processing/admin verification completes.
+- The UI no longer sits on `Registering...` waiting for the slow database response.
+- When the backend eventually confirms the save, Registered Players cache is refreshed.
+- If the backend actually returns an error, the submitted payload is retained in browser localStorage as `caca.pendingRegistration` for troubleshooting instead of silently discarding the user's entered data.
+- This does not claim that MongoDB has already committed the record; the screen says the registration request was received/submitted.

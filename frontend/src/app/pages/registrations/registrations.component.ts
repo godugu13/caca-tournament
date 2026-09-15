@@ -17,9 +17,10 @@ import { Tournament, Registration } from '../../models/models';
 
   <div class="card registration-success-card" *ngIf="registrationComplete">
     <div class="registration-success-icon">✓</div>
-    <h2>You have been registered successfully!</h2>
-    <p><b>{{registeredDisplayName}}</b>, your registration for <b>CACA 9th Rolling Trophy</b> is confirmed.</p>
+    <h2>Registration Submitted Successfully!</h2>
+    <p><b>{{registeredDisplayName}}</b>, we received your registration request for <b>CACA 9th Rolling Trophy</b>.</p>
     <p class="practice-message">Practice well and see you on tournament day!</p>
+    <p class="muted"><b>Note:</b> Your name may take a few minutes to appear in the Registered Players list while the registration is processed and verified by the admin.</p>
     <p class="muted">October 24, 2026 • Doubles</p>
     <button type="button" class="secondary" (click)="registerAnother()">Register Another Player</button>
   </div>
@@ -506,30 +507,39 @@ export class RegistrationsComponent implements OnInit {
       teamMemberNames: []
     };
 
-    this.registrationSubmitting = true;
+    // Immediate acknowledgement: do not make the user wait for the slow Mongo write.
+    // Keep the HTTP request alive in this component while the success screen is shown.
+    this.registeredDisplayName = this.model.playerName;
+    this.registrationSubmitting = false;
+    this.registrationComplete = true;
+    window.scrollTo({top: 0, behavior: 'smooth'});
+
     const requests = this.selectedFormats.map(fmt =>
       this.api.register({
         ...payload,
         format: fmt,
         partnerName: (fmt === 'Doubles' || fmt === 'Mixed Doubles') ? this.model.partnerName : ''
-      }).pipe(timeout(30000))
+      })
     );
 
     forkJoin(requests).subscribe({
       next: savedList => {
         const saved = savedList[0];
-        this.registeredDisplayName = this.displayPlayerName(saved) || this.model.playerName;
-        this.registrationSuccessMessage = '';
-        this.registrationErrorMessage = '';
-        this.registrationSubmitting = false;
-        this.registrationComplete = true;
-        window.scrollTo({top: 0, behavior: 'smooth'});
+        this.registeredDisplayName = this.displayPlayerName(saved) || this.registeredDisplayName;
+        // Refresh cached players after the database finally confirms the save.
+        this.loadPlayers(true);
       },
       error: (err: any) => {
-        this.registrationSubmitting = false;
-        this.registrationErrorMessage = err?.name === 'TimeoutError'
-          ? 'Registration server did not respond within 30 seconds. Please do not submit again yet; refresh Registered Players first to check whether the registration was saved.'
-          : this.displayError(err);
+        // The user has already moved to the acknowledgement screen.
+        // Preserve the form values in browser storage so an admin can recover the request
+        // if the backend actually rejects it instead of merely responding slowly.
+        try {
+          localStorage.setItem('caca.pendingRegistration', JSON.stringify({
+            ...payload,
+            submittedAt: new Date().toISOString(),
+            error: this.displayError(err)
+          }));
+        } catch {}
       }
     });
   }

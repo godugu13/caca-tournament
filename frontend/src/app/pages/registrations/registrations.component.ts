@@ -199,7 +199,8 @@ import { Tournament, Registration } from '../../models/models';
   <div class="card bulk-remove-card" *ngIf="isAdmin()">
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
     <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
-    <small>Enter Admin PIN once, select multiple players, and remove them together.</small>
+    <button type="button" class="secondary" (click)="loadPlayers(true)">Refresh Players</button>
+    <small>Select players, then enter Admin PIN once to remove them together.</small>
   </div>
 
   <div class="table-scroll">
@@ -220,7 +221,7 @@ import { Tournament, Registration } from '../../models/models';
       </thead>
       <tbody>
         <tr *ngFor="let p of players; let i=index">
-          <td *ngIf="isAdmin()"><input type="checkbox" [checked]="isSelected(p)" (change)="togglePlayerSelection(p, $event)"></td>
+          <td *ngIf="isAdmin()"><input type="checkbox" [checked]="isSelected(p, i)" (change)="togglePlayerSelection(p, i, $event)"></td>
           <td>{{i+1}}</td>
           <td>{{displayPlayerName(p)}}</td>
           <td>{{p.format || model.format}}</td>
@@ -362,7 +363,21 @@ export class RegistrationsComponent implements OnInit {
     const h12 = hour % 12 || 12;
     return `${h12}:${minute} ${suffix}`;
   }
-  openDeletePinModal(){ if(!this.selectedCount()){alert('Please select at least one player.');return;} this.bulkRemovePin='';this.deletePinError='';this.deletePinModalOpen=true; }
+  openDeletePinModal(){
+    const rows = this.selectedRows();
+    if (!rows.length) {
+      alert('Please select at least one player.');
+      return;
+    }
+    const missingIdCount = rows.filter(p => !this.registrationId(p)).length;
+    if (missingIdCount) {
+      alert(`${missingIdCount} selected row(s) do not contain a registration ID yet. Click Refresh Players and try again.`);
+      return;
+    }
+    this.bulkRemovePin='';
+    this.deletePinError='';
+    this.deletePinModalOpen=true;
+  }
   confirmDeleteWithPin(){ if(!this.bulkRemovePin){this.deletePinError='Enter Admin PIN';return;} this.removeSelectedPlayers(); }
 
   onTournamentChange() {
@@ -386,10 +401,26 @@ export class RegistrationsComponent implements OnInit {
     this.loadPlayers();
   }
 
-  loadPlayers() {
+  loadPlayers(forceRefresh: boolean = false) {
     if (!this.model.tournamentId || !this.model.format) {
       this.players = [];
       return;
+    }
+
+    const cacheKey = this.isAdmin()
+      ? 'caca.currentRollingTrophy.adminPlayers'
+      : 'caca.currentRollingTrophy.publicPlayers';
+
+    if (!forceRefresh) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const cachedPlayers = JSON.parse(cached);
+          if (Array.isArray(cachedPlayers) && cachedPlayers.length) {
+            this.players = cachedPlayers.map((p:any) => this.normalizeRegistrationForDisplay(p)) as any;
+          }
+        }
+      } catch {}
     }
 
     const isCurrentRollingTrophy = this.model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026';
@@ -401,9 +432,14 @@ export class RegistrationsComponent implements OnInit {
       next: (players: any[]) => {
         this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
         this.selectedPlayerIds = {};
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(this.players || []));
+        } catch {}
       },
       error: (err: any) => {
-        this.registrationErrorMessage = this.displayError(err);
+        if (!this.players.length) {
+          this.registrationErrorMessage = this.displayError(err);
+        }
       }
     });
   }
@@ -818,35 +854,59 @@ export class RegistrationsComponent implements OnInit {
     URL.revokeObjectURL(link.href);
   }
 
-  isSelected(p:Registration): boolean {
-    return !!(p.id && this.selectedPlayerIds[p.id]);
+  registrationId(p:any): string {
+    return String(p?.id || p?._id || p?.registrationId || '').trim();
   }
 
-  togglePlayerSelection(p:Registration, event:any) {
-    if (p.id) this.selectedPlayerIds[p.id] = !!event?.target?.checked;
+  selectionKey(p:any, index:number): string {
+    const id = this.registrationId(p);
+    if (id) return `id:${id}`;
+    return `row:${index}:${this.displayPlayerName(p)}:${this.partnerDisplay(p)}`;
+  }
+
+  isSelected(p:Registration, index:number): boolean {
+    return !!this.selectedPlayerIds[this.selectionKey(p, index)];
+  }
+
+  togglePlayerSelection(p:Registration, index:number, event:any) {
+    const key = this.selectionKey(p, index);
+    this.selectedPlayerIds[key] = !!event?.target?.checked;
   }
 
   allVisibleSelected(): boolean {
-    const visible = (this.players || []).filter(p => !!p.id);
-    return visible.length > 0 && visible.every(p => !!this.selectedPlayerIds[p.id!]);
+    return (this.players || []).length > 0 &&
+      (this.players || []).every((p, i) => !!this.selectedPlayerIds[this.selectionKey(p, i)]);
   }
 
   toggleAllVisible(event:any) {
     const checked = !!event?.target?.checked;
-    (this.players || []).forEach(p => { if (p.id) this.selectedPlayerIds[p.id] = checked; });
+    (this.players || []).forEach((p, i) => {
+      this.selectedPlayerIds[this.selectionKey(p, i)] = checked;
+    });
+  }
+
+  selectedRows(): Registration[] {
+    return (this.players || []).filter((p, i) => !!this.selectedPlayerIds[this.selectionKey(p, i)]);
   }
 
   selectedIds(): string[] {
-    return Object.keys(this.selectedPlayerIds || {}).filter(id => this.selectedPlayerIds[id]);
+    return this.selectedRows()
+      .map(p => this.registrationId(p))
+      .filter(id => !!id);
   }
 
   selectedCount(): number {
-    return this.selectedIds().length;
+    return this.selectedRows().length;
   }
 
   removeSinglePlayer(p:Registration) {
-    if (!p.id) return;
-    this.selectedPlayerIds = {[p.id]: true};
+    const index = (this.players || []).indexOf(p);
+    const id = this.registrationId(p);
+    if (!id || index < 0) {
+      alert('Registration ID is not available yet. Click Refresh Players and try again.');
+      return;
+    }
+    this.selectedPlayerIds = {[this.selectionKey(p, index)]: true};
     this.openDeletePinModal();
   }
 
@@ -863,7 +923,18 @@ export class RegistrationsComponent implements OnInit {
     }
     if (!confirm(`Remove ${ids.length} selected player(s)?`)) return;
     this.api.deleteRegistrationsBulk(ids, pin).subscribe({
-      next: () => { this.selectedPlayerIds = {}; this.deletePinModalOpen=false; this.bulkRemovePin=''; this.loadPlayers(); },
+      next: () => {
+        const removedIds = new Set(ids);
+        this.players = (this.players || []).filter(p => !removedIds.has(this.registrationId(p)));
+        this.selectedPlayerIds = {};
+        this.deletePinModalOpen = false;
+        this.bulkRemovePin = '';
+        this.deletePinError = '';
+        try {
+          localStorage.setItem('caca.currentRollingTrophy.adminPlayers', JSON.stringify(this.players || []));
+        } catch {}
+        this.loadPlayers(true);
+      },
       error: (err: any) => { this.deletePinError=this.displayError(err); }
     });
   }

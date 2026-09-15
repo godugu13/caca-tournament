@@ -163,7 +163,7 @@ export class DashboardComponent implements OnInit {
           error: () => {}
         });
       },
-      error: err => {
+      error: (err: any) => {
         this.tournaments = [];
         this.currentTournaments = [];
         this.completedTournaments = [];
@@ -196,15 +196,30 @@ export class DashboardComponent implements OnInit {
     const id = t?.id || '';
     if (!id || Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) return;
 
-    this.playersLoading[id] = true;
+    try {
+      const cached = localStorage.getItem('caca.currentRollingTrophy.publicPlayers');
+      if (cached) {
+        const players = JSON.parse(cached);
+        if (Array.isArray(players) && players.length) {
+          this.registeredPlayers[id] = players;
+        }
+      }
+    } catch {}
+
+    this.playersLoading[id] = !Object.prototype.hasOwnProperty.call(this.registeredPlayers, id);
     this.api.currentPublicRegistrationNames().subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;
+        try {
+          localStorage.setItem('caca.currentRollingTrophy.publicPlayers', JSON.stringify(players || []));
+        } catch {}
       },
       error: () => {
-        this.registeredPlayers[id] = [];
         this.playersLoading[id] = false;
+        if (!Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) {
+          this.registeredPlayers[id] = [];
+        }
       }
     });
   }
@@ -224,6 +239,11 @@ export class DashboardComponent implements OnInit {
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;
+        if (isCurrentRollingTrophy) {
+          try {
+            localStorage.setItem('caca.currentRollingTrophy.publicPlayers', JSON.stringify(players || []));
+          } catch {}
+        }
       },
       error: () => {
         this.registeredPlayers[id] = [];

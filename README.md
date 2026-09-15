@@ -2273,3 +2273,18 @@ Built from Step 29.31L, not from 29.31M/29.31N.
 - Super Admin gets a `Repair Registration Data` button on Register For.
 - Recovery preserves registration records and IDs; it updates only `tournamentId` from the temporary alias to the real tournament ID. Soft-deleted records stay soft-deleted.
 - Existing success confirmation from 29.31L is preserved.
+
+
+## Step 29.31P - Player List Display + Delete Selection UI Fix
+
+Built from Step 29.31O1. Backend recovery behavior is unchanged.
+
+- Register For now keeps the last successfully loaded player list in browser localStorage and displays it immediately on subsequent page loads while the API refresh runs in the background.
+- Dashboard uses the same approach for the public Registered Players list.
+- Added an explicit `Refresh Players` button for Admin/Super Admin.
+- Checkbox selection no longer depends only on `p.id`; it supports `id`, `_id`, or `registrationId` and uses a stable row-selection key.
+- Remove Selected checks the actual selected rows instead of only the ID map.
+- If a selected row truly has no registration ID, the UI explains that and asks for Refresh instead of incorrectly saying no player is selected.
+- Single-player Remove uses the same robust registration-ID resolution.
+- After successful deletion, removed rows disappear immediately from the cached/UI list, then a fresh API read runs.
+- No backend changes from 29.31O1 are required for this step.

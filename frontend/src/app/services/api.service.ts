@@ -109,6 +109,7 @@ export class ApiService {
   currentRegistrationRecoveryPreview(pin: string): Observable<any> { return this.http.get<any>(`${this.baseUrl}/registrations/recovery/current/preview?pin=${encodeURIComponent(pin)}`); }
   recoverCurrentRegistrations(pin: string): Observable<any> { return this.http.post<any>(`${this.baseUrl}/registrations/recovery/current?pin=${encodeURIComponent(pin)}`, {}); }
   registrationsByFormat(tournamentId: string, format: string): Observable<Registration[]> { return this.http.get<Registration[]>(`${this.baseUrl}/registrations/tournament/${tournamentId}/${format}`); }
+  warmupRegistrationDb(): Observable<any> { return this.http.get<any>(`${this.baseUrl}/registrations/warmup`); }
   register(r: Registration): Observable<Registration> { return this.http.post<Registration>(`${this.baseUrl}/registrations`, r); }
   memberById(membershipId: string): Observable<Member> { return this.http.get<Member>(`${this.baseUrl}/members/${encodeURIComponent(membershipId)}`); }
   memberByEmail(email: string): Observable<Member> { return this.http.get<Member>(`${this.baseUrl}/members/by-email?email=${encodeURIComponent(email)}`); }

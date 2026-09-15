@@ -81,7 +81,7 @@ import { Tournament, Registration } from '../../models/models';
         <label class="row-label">Email <span class="required">*</span></label>
         <div class="row-value compact-inline">
           <input class="compact-input email-input" [(ngModel)]="model.email" placeholder="Email">
-          <button type="button" class="secondary compact-btn" (click)="lookupMember()">Lookup</button>
+          <button type="button" class="secondary compact-btn" (click)="lookupMember()" [disabled]="memberLookupRunning">{{memberLookupRunning ? 'Looking…' : 'Lookup'}}</button>
         </div>
       </div>
 
@@ -267,6 +267,7 @@ export class RegistrationsComponent implements OnInit {
   registrationComplete = false;
   registeredDisplayName = '';
   registrationSubmitting = false;
+  memberLookupRunning = false;
   recoveryRunning = false;
   recoveryMessage = '';
 
@@ -326,7 +327,10 @@ export class RegistrationsComponent implements OnInit {
     this.tournamentsLoadError = '';
     this.updatePaymentByFinalFee();
 
-    // Registration form is already ready. Load the unified player list independently.
+    // Start Mongo warm-up immediately, but never block the registration form.
+    this.api.warmupRegistrationDb().pipe(timeout(5000)).subscribe({next:()=>{}, error:()=>{}});
+
+    // Load the unified player list independently.
     this.loadPlayers();
   }
 
@@ -446,17 +450,25 @@ export class RegistrationsComponent implements OnInit {
 
   lookupMember() {
     this.memberMessage = '';
-    if (!this.model.email) return;
-    this.api.memberByEmail(this.model.email).subscribe({
+    if (!this.model.email || this.memberLookupRunning) return;
+    this.memberLookupRunning = true;
+
+    this.api.memberByEmail(this.model.email).pipe(timeout(15000)).subscribe({
       next: member => {
+        this.memberLookupRunning = false;
         if (member) {
           this.model.playerName = member.name || this.model.playerName;
           this.model.phone = member.phone || this.model.phone;
           this.model.email = member.email || this.model.email;
           this.memberMessage = `Found existing member ${member.name}. Details auto-filled; you can edit if needed.`;
+        } else {
+          this.memberMessage = 'No existing member found. Please enter the registration details.';
         }
       },
-      error: () => this.memberMessage = ''
+      error: () => {
+        this.memberLookupRunning = false;
+        this.memberMessage = 'Lookup is taking too long. You can still enter the details manually and register.';
+      }
     });
   }
 

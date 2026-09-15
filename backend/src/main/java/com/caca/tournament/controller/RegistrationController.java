@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/registrations")
@@ -31,6 +32,19 @@ public class RegistrationController {
     private static final String CURRENT_TOURNAMENT_NAME = "CACA 9th Rolling Trophy - October 24, 2026";
     private static final LocalDate CURRENT_TOURNAMENT_DATE = LocalDate.of(2026, 10, 24);
     private volatile String currentTournamentIdCache;
+
+    @GetMapping("/warmup")
+    public Map<String, Object> warmup() {
+        // Never block the browser on Mongo warm-up. Start the first DB operation
+        // while the user is filling the registration form.
+        CompletableFuture.runAsync(() -> {
+            try {
+                repository.findByTournamentIdAndRecordStatusNot(CURRENT_REGISTRATION_ALIAS, "D");
+            } catch (Exception ignored) {
+            }
+        });
+        return Map.of("started", true);
+    }
 
     @GetMapping("/tournament/{tournamentId}")
     public List<Registration> byTournament(@PathVariable String tournamentId) {

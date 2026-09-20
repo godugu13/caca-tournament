@@ -2309,3 +2309,15 @@ Built from Step 29.31O1. Backend recovery behavior is unchanged.
 - If a partner is still TBD, the button shows `Player + TBD`.
 - Register For remains unchanged and continues showing individual registration rows.
 - No registration, backend, recovery, scoring, standings, or tournament behavior was changed from Step 29.31S.
+
+
+## Step 29.31V - Mobile Dashboard + Team Pairing + Super Admin Registration Edit
+
+1. Removed the descriptive subtext from the four Dashboard action cards and made them more compact on mobile.
+2. Dashboard Registered Players no longer has its own fixed-height scroll area. All teams expand naturally down the home page.
+3. Team cards are compact and size primarily to their names instead of stretching across the available row.
+4. Reciprocal Doubles registrations can now pair by matching first names as well as exact full names; reciprocal duplicate registrations collapse to one team.
+5. Super Admin gets an Edit action on Registered Players and can edit Player Name, Partner Name, Email, and Phone.
+6. The edit API is Super Admin protected. Existing delete/payment behavior remains unchanged.
+
+Build note: automated frontend build could not be completed in this environment because Angular dependencies were not installed; run `npm install`/`npm run build` locally as usual.

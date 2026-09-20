@@ -237,6 +237,7 @@ import { Tournament, Registration } from '../../models/models';
           </td>
           <td *ngIf="isAdmin()">
             <button type="button" class="secondary small" (click)="togglePayment(p)">{{(p.paymentStatus || '').toUpperCase()==='PAID' ? 'Mark Pending' : 'Mark Paid'}}</button>
+            <button *ngIf="isSuperAdmin()" type="button" class="secondary small" (click)="openEditPlayer(p)">Edit</button>
             <button type="button" class="danger small" (click)="removeSinglePlayer(p)">Remove</button>
           </td>
         </tr>
@@ -244,6 +245,24 @@ import { Tournament, Registration } from '../../models/models';
     </table>
   </div>
 </ng-container>
+<div class="modal-backdrop" *ngIf="editPlayerModalOpen">
+  <div class="delete-pin-modal registration-edit-modal">
+    <h3>Edit Registered Player</h3>
+    <label>Player Name</label>
+    <input maxlength="25" [(ngModel)]="editPlayerModel.playerName">
+    <label>Partner Name</label>
+    <input maxlength="25" [(ngModel)]="editPlayerModel.partnerName">
+    <label>Email</label>
+    <input type="email" [(ngModel)]="editPlayerModel.email">
+    <label>Phone</label>
+    <input [(ngModel)]="editPlayerModel.phone">
+    <div class="modal-actions">
+      <button type="button" (click)="saveEditedPlayer()" [disabled]="editPlayerSaving">{{editPlayerSaving ? 'Saving…' : 'Save Changes'}}</button>
+      <button type="button" class="secondary" (click)="closeEditPlayer()" [disabled]="editPlayerSaving">Cancel</button>
+    </div>
+    <p class="warning" *ngIf="editPlayerError">{{editPlayerError}}</p>
+  </div>
+</div>
 <div class="modal-backdrop" *ngIf="deletePinModalOpen"><div class="delete-pin-modal"><h3>Admin PIN</h3><input type="password" inputmode="numeric" maxlength="4" [(ngModel)]="bulkRemovePin" placeholder="4-digit PIN"><div class="modal-actions"><button type="button" class="danger" (click)="confirmDeleteWithPin()">Confirm Delete</button><button type="button" class="secondary" (click)="deletePinModalOpen=false">Cancel</button></div><p class="warning" *ngIf="deletePinError">{{deletePinError}}</p></div></div>
 </section>
 `
@@ -271,6 +290,11 @@ export class RegistrationsComponent implements OnInit {
   memberLookupRunning = false;
   recoveryRunning = false;
   recoveryMessage = '';
+  editPlayerModalOpen = false;
+  editPlayerSaving = false;
+  editPlayerError = '';
+  editPlayerId = '';
+  editPlayerModel = { playerName: '', partnerName: '', email: '', phone: '' };
 
   model: Registration = {
     tournamentId: '',
@@ -559,6 +583,64 @@ export class RegistrationsComponent implements OnInit {
     this.model.discountAmount = 0;
     this.model.finalFee = this.finalFee();
     this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : 'PENDING';
+  }
+
+  openEditPlayer(p: Registration) {
+    if (!this.isSuperAdmin()) return;
+    const id = this.registrationId(p);
+    if (!id) {
+      this.registrationErrorMessage = 'Please refresh Registered Players before editing this registration.';
+      return;
+    }
+    this.editPlayerId = id;
+    this.editPlayerModel = {
+      playerName: this.displayPlayerName(p),
+      partnerName: this.partnerDisplay(p) === 'TBD' ? '' : this.partnerDisplay(p),
+      email: this.displayEmail(p),
+      phone: this.displayPhone(p)
+    };
+    this.editPlayerError = '';
+    this.editPlayerModalOpen = true;
+  }
+
+  closeEditPlayer() {
+    if (this.editPlayerSaving) return;
+    this.editPlayerModalOpen = false;
+    this.editPlayerError = '';
+    this.editPlayerId = '';
+  }
+
+  saveEditedPlayer() {
+    if (!this.isSuperAdmin() || this.editPlayerSaving || !this.editPlayerId) return;
+    const playerName = String(this.editPlayerModel.playerName || '').trim();
+    if (!playerName) {
+      this.editPlayerError = 'Player Name is required.';
+      return;
+    }
+    if (playerName.length > 25 || String(this.editPlayerModel.partnerName || '').trim().length > 25) {
+      this.editPlayerError = 'Player and Partner names can be a maximum of 25 characters.';
+      return;
+    }
+
+    this.editPlayerSaving = true;
+    this.editPlayerError = '';
+    this.api.updateRegistrationDetails(this.editPlayerId, {
+      playerName,
+      partnerName: String(this.editPlayerModel.partnerName || '').trim(),
+      email: String(this.editPlayerModel.email || '').trim(),
+      phone: String(this.editPlayerModel.phone || '').trim()
+    }, this.adminAccess.currentPin()).subscribe({
+      next: () => {
+        this.editPlayerSaving = false;
+        this.editPlayerModalOpen = false;
+        this.editPlayerId = '';
+        this.loadPlayers(true);
+      },
+      error: (err: any) => {
+        this.editPlayerSaving = false;
+        this.editPlayerError = this.displayError(err);
+      }
+    });
   }
 
   recoverRegistrations() {

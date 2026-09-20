@@ -162,6 +162,28 @@ public class RegistrationController {
         return repository.save(registration);
     }
 
+    @PutMapping("/{id}/details")
+    public ResponseEntity<?> updateRegistrationDetails(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "") String pin,
+            @RequestBody Map<String, String> request) {
+        if (!isSuperAdminPin(pin)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN is required"));
+        }
+
+        Registration registration = repository.findById(id).orElseThrow();
+        String playerName = safe(request.get("playerName"));
+        if (playerName.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Player name is required"));
+        }
+
+        registration.setPlayerName(playerName);
+        registration.setPartnerName(safe(request.get("partnerName")));
+        registration.setEmail(safe(request.get("email")));
+        registration.setPhone(safe(request.get("phone")));
+        return ResponseEntity.ok(repository.save(registration));
+    }
+
     @PutMapping("/{id}/attendance")
     public Registration attendance(@PathVariable String id, @RequestBody Map<String, Boolean> request) {
         Registration registration = repository.findById(id).orElseThrow();

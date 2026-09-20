@@ -17,10 +17,10 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
 </div>
 
 <div class="dashboard-grid player-dashboard-grid">
-  <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b><span>Register for an upcoming tournament.</span></a>
-  <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b><span>Open your assigned score card.</span></a>
-  <a class="dash-card black" routerLink="/brackets"><b>Brackets</b><span>View live and completed matchups.</span></a>
-  <a class="dash-card ocean-light" routerLink="/standings"><b>Standings</b><span>View rankings and round results.</span></a>
+  <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b></a>
+  <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b></a>
+  <a class="dash-card black" routerLink="/brackets"><b>Brackets</b></a>
+  <a class="dash-card ocean-light" routerLink="/standings"><b>Standings</b></a>
   <a *ngIf="hasStartedLiveTournament()" class="dash-card live-card" routerLink="/live"><b>🔴 Tournament Day - Live</b><span>Open CACA live tournament streams.</span></a>
 </div>
 
@@ -262,30 +262,37 @@ export class DashboardComponent implements OnInit {
     const players = this.registeredPlayers[tournamentId] || [];
     const teams: {player1: string; player2: string}[] = [];
     const seen = new Set<string>();
+    const clean = (value: any) => String(value || '').trim();
+    const normalized = (value: any) => clean(value).toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ');
+    const firstName = (value: any) => normalized(value).split(' ')[0] || '';
 
     for (const registration of players) {
-      const player1 = String(registration.playerName || '').trim();
-      const player2 = String(registration.partnerName || '').trim();
-
+      const player1 = clean(registration.playerName);
+      let player2 = clean(registration.partnerName);
       if (!player1) continue;
 
-      // Dashboard is team-oriented for Doubles. If the same team was entered
-      // from both partners, normalize A+B and B+A to one team button.
-      const normalized1 = player1.toLowerCase();
-      const normalized2 = player2.toLowerCase();
-      const key = player2
-        ? [normalized1, normalized2].sort().join('||')
-        : `single||${normalized1}`;
+      if (player2) {
+        const p1First = firstName(player1);
+        const p2First = firstName(player2);
+        const reciprocal = players.find(other => {
+          if (other === registration) return false;
+          const otherPlayer = clean(other.playerName);
+          const otherPartner = clean(other.partnerName);
+          return !!otherPlayer && !!otherPartner
+            && firstName(otherPlayer) === p2First
+            && firstName(otherPartner) === p1First;
+        });
+        if (reciprocal?.playerName) player2 = clean(reciprocal.playerName);
+      }
 
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      teams.push({
-        player1,
-        player2: player2 || 'TBD'
-      });
+      const n1 = normalized(player1), n2 = normalized(player2);
+      const f1 = firstName(player1), f2 = firstName(player2);
+      const fullKey = player2 ? [n1, n2].sort().join('||') : `single||${n1}`;
+      const firstKey = player2 ? `first||${[f1, f2].sort().join('||')}` : `single-first||${f1}`;
+      if (seen.has(fullKey) || seen.has(firstKey)) continue;
+      seen.add(fullKey); seen.add(firstKey);
+      teams.push({ player1, player2: player2 || 'TBD' });
     }
-
     return teams;
   }
 

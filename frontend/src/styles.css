@@ -3101,3 +3101,20 @@ h1, h2, h3,
     grid-template-columns: 1fr;
   }
 }
+
+/* Step 29.31V: compact dashboard and full team list */
+.player-dashboard-grid .dash-card{min-height:72px;padding:14px 18px;justify-content:center}
+.dashboard-player-list{max-height:none!important;overflow:visible!important}
+.dashboard-team-buttons{display:flex!important;flex-wrap:wrap;align-items:flex-start;gap:7px}
+.dashboard-player-list .dashboard-team-button{width:max-content;max-width:100%;min-width:190px;min-height:50px;padding:6px 10px 6px 7px;border-radius:16px}
+.dashboard-team-button .team-names b{width:max-content;max-width:100%;font-size:13px}
+@media(max-width:620px){
+ .player-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .player-dashboard-grid .dash-card{min-height:58px;padding:10px 12px}
+ .player-dashboard-grid .dash-card b{font-size:17px}
+ .dashboard-team-buttons{display:flex!important}
+ .dashboard-player-list .dashboard-team-button{min-width:0;width:max-content}
+}
+
+.registration-edit-modal{display:grid;gap:8px;max-width:480px;width:calc(100% - 24px)}
+.registration-edit-modal label{margin-top:2px}

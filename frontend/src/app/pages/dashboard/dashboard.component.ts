@@ -16,13 +16,7 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
   <span class="muted"> {{dashboardError}}</span>
 </div>
 
-<div class="dashboard-grid player-dashboard-grid">
-  <a class="dash-card ocean-light" routerLink="/registrations"><b>Register For</b></a>
-  <a class="dash-card yellow" routerLink="/player-score"><b>Player Score</b></a>
-  <a class="dash-card black" routerLink="/brackets"><b>Brackets</b></a>
-  <a class="dash-card ocean-light" routerLink="/standings"><b>Standings</b></a>
-  <a *ngIf="hasStartedLiveTournament()" class="dash-card live-card" routerLink="/live"><b>🔴 Tournament Day - Live</b><span>Open CACA live tournament streams.</span></a>
-</div>
+
 
 <section class="card super-admin-dashboard-tools" *ngIf="isSuperAdmin()">
   <h3>Super Admin Tools</h3>

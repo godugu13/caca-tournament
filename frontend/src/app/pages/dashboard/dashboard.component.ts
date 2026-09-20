@@ -77,6 +77,18 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
               </span>
             </div>
           </div>
+
+          <div class="partner-lookout" *ngIf="partnerLookout(item.tournament.id || '').length">
+            <h4>Looking for a Doubles Partner</h4>
+            <p class="muted">These registered players are currently available for partnering.</p>
+            <div class="partner-lookout-list">
+              <div class="partner-lookout-player" *ngFor="let p of partnerLookout(item.tournament.id || '')">
+                <b><span class="team-dot">•</span>{{p.playerName}}</b>
+                <a *ngIf="p.publicPhone" [href]="'tel:' + p.publicPhone">{{p.publicPhone}}</a>
+                <span *ngIf="!p.publicPhone" class="muted">Contact not shared</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </article>
@@ -260,6 +272,17 @@ export class DashboardComponent implements OnInit {
         this.registeredPlayers[id] = [];
         this.playersLoading[id] = false;
       }
+    });
+  }
+
+  partnerLookout(tournamentId: string): PublicRegistration[] {
+    const seen = new Set<string>();
+    return (this.registeredPlayers[tournamentId] || []).filter(p => {
+      if (!p.lookingForPartner) return false;
+      const key = String(p.playerName || '').trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }
 

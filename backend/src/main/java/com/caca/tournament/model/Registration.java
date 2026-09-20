@@ -23,6 +23,7 @@ public class Registration {
     @Indexed
     private String email;
     private String phone;
+    private Boolean publicPartnerContact = false;
     private String format = "Singles";
     private String partnerName;
     private String captainName;

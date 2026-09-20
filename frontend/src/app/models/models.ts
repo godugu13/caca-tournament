@@ -46,6 +46,7 @@ export interface Registration {
   playerMemberId?: string;
   email?: string;
   phone?: string;
+  publicPartnerContact?: boolean;
   format: string;
   partnerName?: string;
   captainName?: string;
@@ -126,4 +127,4 @@ export interface DashboardTournament {
   srrStarted?: boolean;
 }
 
-export interface PublicRegistration { playerName: string; format?: string; partnerName?: string; }
+export interface PublicRegistration { playerName: string; format?: string; partnerName?: string; lookingForPartner?: boolean; publicPhone?: string; }

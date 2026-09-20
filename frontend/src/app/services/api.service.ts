@@ -126,7 +126,7 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/roster/export?${params}`, { responseType: 'blob' });
   }
 
-  updateRegistrationDetails(registrationId: string, details: {playerName:string; partnerName:string; email:string; phone:string}, pin: string): Observable<Registration> {
+  updateRegistrationDetails(registrationId: string, details: {playerName:string; partnerName:string; email:string; phone:string; publicPartnerContact?:boolean}, pin: string): Observable<Registration> {
     return this.http.put<Registration>(`${this.baseUrl}/registrations/${registrationId}/details?pin=${encodeURIComponent(pin)}`, details);
   }
   deleteRegistration(registrationId: string, pin: string): Observable<any> { return this.http.delete<any>(`${this.baseUrl}/registrations/${registrationId}?pin=${encodeURIComponent(pin)}`); }

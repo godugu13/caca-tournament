@@ -3119,15 +3119,9 @@ h1, h2, h3,
 .registration-edit-modal{display:grid;gap:8px;max-width:480px;width:calc(100% - 24px)}
 .registration-edit-modal label{margin-top:2px}
 
-/* Step 29.31Y: opt-in doubles partner lookout */
-.partner-contact-consent .public-contact-check,
-.registration-edit-modal .public-contact-check{display:flex;align-items:flex-start;gap:8px;font-weight:600}
-.public-contact-check input{width:auto;margin-top:3px}
-.partner-lookout{margin-top:12px;padding-top:11px;border-top:1px solid #d8e5ec}
-.partner-lookout h4{margin:0 0 2px;color:#005b82}
-.partner-lookout p{margin:0 0 8px}
-.partner-lookout-list{display:flex;flex-wrap:wrap;gap:7px}
-.partner-lookout-player{display:flex;align-items:center;gap:10px;width:max-content;max-width:100%;padding:7px 10px;border:1px solid #d6c67d;border-radius:999px;background:#fff9df}
-.partner-lookout-player b{display:flex;align-items:center;gap:5px}
-.partner-lookout-player a{font-weight:800;text-decoration:none}
-@media(max-width:620px){.partner-lookout-list{display:grid}.partner-lookout-player{width:100%;justify-content:space-between}}
+/* Step 29.31Y2: Dashboard-only doubles partner list */
+.partner-lookout{margin-top:12px;padding-top:10px;border-top:1px solid #dbe5ec}
+.partner-lookout h4{margin:0 0 6px;color:#005b82}
+.partner-lookout-row{display:flex;gap:14px;align-items:center;padding:3px 0}
+.partner-lookout-row a{font-weight:700;text-decoration:none}
+@media(max-width:620px){.partner-lookout-row{justify-content:space-between}}

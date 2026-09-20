@@ -2330,13 +2330,11 @@ Build note: automated frontend build could not be completed in this environment 
 - No other behavior from Step 29.31W was changed.
 
 
-## Step 29.31Y - Looking for a Doubles Partner
+## Step 29.31Y2 - Dashboard-only Doubles Partner List
 
-- Added an opt-in `publicPartnerContact` registration flag, defaulting to false.
-- When Partner Name is blank/TBD/N/A/No Partner Yet/Not Decided Yet/Looking/Need Partner and a phone exists, Register For offers:
-  `Show my phone number publicly so potential doubles partners can contact me.`
-- Existing registrations remain private by default. No existing phone is published automatically.
-- Dashboard Registered Players now includes `Looking for a Doubles Partner` for registrations whose partner is not decided.
-- Phone appears in that public section only when the registrant explicitly opted in; otherwise it says `Contact not shared`.
-- Super Admin registration Edit can also enable/disable the public-partner-contact permission.
-- Public registration endpoints expose only player name, format, partner name, partner-looking status, and the explicitly opted-in public phone.
+- Reverted the Step 29.31Y registration-page consent/checkbox/model changes by rebuilding from Step 29.31X.
+- No new field or control was added to Register For.
+- Under Dashboard Registered Players, added only `Looking for a Doubles Partner`.
+- The list contains only player name and contact number.
+- Partner values treated as looking include blank, TBD, N/A, No Partner, No Partner Yet, Not Decided, Not Decided Yet, Looking, Looking for Partner, Need Partner, Needs Partner, and Partner Needed.
+- The public dashboard endpoint includes the phone/contact number only for registrations recognized as looking for a partner.

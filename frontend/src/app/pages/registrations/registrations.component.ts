@@ -98,18 +98,7 @@ import { Tournament, Registration } from '../../models/models';
 
       <div class="compact-row" *ngIf="showPartnerColumn()">
         <label class="row-label">Partner Name <span class="required">*</span></label>
-        <div class="row-value"><input class="compact-input name-input" maxlength="25" [(ngModel)]="model.partnerName" placeholder="Partner Name or TBD"></div>
-      </div>
-
-      <div class="compact-row partner-contact-consent" *ngIf="showPartnerColumn() && isLookingForPartner(model.partnerName)">
-        <label class="row-label">Partner Search</label>
-        <div class="row-value">
-          <label class="public-contact-check">
-            <input type="checkbox" [(ngModel)]="model.publicPartnerContact" [disabled]="!model.phone">
-            Show my phone number publicly so potential doubles partners can contact me.
-          </label>
-          <small class="muted" *ngIf="!model.phone">Enter a phone number above to enable public contact.</small>
-        </div>
+        <div class="row-value"><input class="compact-input name-input" maxlength="25" [(ngModel)]="model.partnerName" placeholder="Partner Name"></div>
       </div>
 
       <div class="discount-registration-box compact-discount-box" *ngIf="enabledDiscounts().length">
@@ -267,10 +256,6 @@ import { Tournament, Registration } from '../../models/models';
     <input type="email" [(ngModel)]="editPlayerModel.email">
     <label>Phone</label>
     <input [(ngModel)]="editPlayerModel.phone">
-    <label class="public-contact-check">
-      <input type="checkbox" [(ngModel)]="editPlayerModel.publicPartnerContact">
-      Show phone publicly when this player is looking for a doubles partner
-    </label>
     <div class="modal-actions">
       <button type="button" (click)="saveEditedPlayer()" [disabled]="editPlayerSaving">{{editPlayerSaving ? 'Saving…' : 'Save Changes'}}</button>
       <button type="button" class="secondary" (click)="closeEditPlayer()" [disabled]="editPlayerSaving">Cancel</button>
@@ -309,14 +294,13 @@ export class RegistrationsComponent implements OnInit {
   editPlayerSaving = false;
   editPlayerError = '';
   editPlayerId = '';
-  editPlayerModel = { playerName: '', partnerName: '', email: '', phone: '', publicPartnerContact: false };
+  editPlayerModel = { playerName: '', partnerName: '', email: '', phone: '' };
 
   model: Registration = {
     tournamentId: '',
     playerName: '',
     email: '',
     phone: '',
-    publicPartnerContact: false,
     format: 'Singles',
     paymentStatus: 'PENDING',
     teamMemberNames: [],
@@ -536,7 +520,6 @@ export class RegistrationsComponent implements OnInit {
       playerName: this.model.playerName,
       email: this.model.email,
       phone: this.model.phone,
-      publicPartnerContact: !!this.model.publicPartnerContact && this.isLookingForPartner(this.model.partnerName),
       partnerName: this.showPartnerColumn() ? this.model.partnerName : '',
       paymentStatus: this.finalFee() <= 0 ? 'PAID' : (this.model.paymentStatus || 'PENDING'),
       discountType: this.model.discountType || '',
@@ -594,22 +577,12 @@ export class RegistrationsComponent implements OnInit {
     this.model.email = '';
     this.model.phone = '';
     this.model.partnerName = '';
-    this.model.publicPartnerContact = false;
     this.model.discountType = '';
     this.model.discountName = '';
     this.model.gender = '';
     this.model.discountAmount = 0;
     this.model.finalFee = this.finalFee();
     this.model.paymentStatus = this.finalFee() <= 0 ? 'PAID' : 'PENDING';
-  }
-
-  isLookingForPartner(partnerName: any): boolean {
-    const value = String(partnerName || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return !value || [
-      'tbd', 'na', 'n a', 'no partner', 'no partner yet',
-      'not decided', 'not decided yet', 'looking', 'looking for partner',
-      'need partner', 'needs partner', 'partner needed'
-    ].includes(value);
   }
 
   openEditPlayer(p: Registration) {
@@ -624,8 +597,7 @@ export class RegistrationsComponent implements OnInit {
       playerName: this.displayPlayerName(p),
       partnerName: this.partnerDisplay(p) === 'TBD' ? '' : this.partnerDisplay(p),
       email: this.displayEmail(p),
-      phone: this.displayPhone(p),
-      publicPartnerContact: !!p.publicPartnerContact
+      phone: this.displayPhone(p)
     };
     this.editPlayerError = '';
     this.editPlayerModalOpen = true;
@@ -656,8 +628,7 @@ export class RegistrationsComponent implements OnInit {
       playerName,
       partnerName: String(this.editPlayerModel.partnerName || '').trim(),
       email: String(this.editPlayerModel.email || '').trim(),
-      phone: String(this.editPlayerModel.phone || '').trim(),
-      publicPartnerContact: !!this.editPlayerModel.publicPartnerContact
+      phone: String(this.editPlayerModel.phone || '').trim()
     }, this.adminAccess.currentPin()).subscribe({
       next: () => {
         this.editPlayerSaving = false;

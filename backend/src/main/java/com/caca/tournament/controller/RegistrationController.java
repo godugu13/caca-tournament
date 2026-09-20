@@ -56,7 +56,7 @@ public class RegistrationController {
     public List<Map<String, Object>> publicNames(@PathVariable String tournamentId) {
         return repository.findByTournamentIdAndRecordStatusNot(tournamentId, "D").stream()
                 .map(this::normalizeCsvMappedRegistration)
-                .map(this::publicRegistrationView)
+                .map(this::publicDashboardRegistration)
                 .toList();
     }
 
@@ -78,7 +78,7 @@ public class RegistrationController {
     @GetMapping("/current/public-names")
     public List<Map<String, Object>> currentPublicNames() {
         return currentRegistrations().stream()
-                .map(this::publicRegistrationView)
+                .map(this::publicDashboardRegistration)
                 .distinct()
                 .toList();
     }
@@ -158,24 +158,21 @@ public class RegistrationController {
     public ResponseEntity<?> updateRegistrationDetails(
             @PathVariable String id,
             @RequestParam(defaultValue = "") String pin,
-            @RequestBody Map<String, Object> request) {
+            @RequestBody Map<String, String> request) {
         if (!isSuperAdminPin(pin)) {
             return ResponseEntity.status(403).body(Map.of("message", "Super Admin PIN is required"));
         }
 
         Registration registration = repository.findById(id).orElseThrow();
-        String playerName = safeObject(request.get("playerName"));
+        String playerName = safe(request.get("playerName"));
         if (playerName.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Player name is required"));
         }
 
         registration.setPlayerName(playerName);
-        registration.setPartnerName(safeObject(request.get("partnerName")));
-        registration.setEmail(safeObject(request.get("email")));
-        registration.setPhone(safeObject(request.get("phone")));
-        if (request.containsKey("publicPartnerContact")) {
-            registration.setPublicPartnerContact(Boolean.TRUE.equals(request.get("publicPartnerContact")));
-        }
+        registration.setPartnerName(safe(request.get("partnerName")));
+        registration.setEmail(safe(request.get("email")));
+        registration.setPhone(safe(request.get("phone")));
         return ResponseEntity.ok(repository.save(registration));
     }
 
@@ -299,15 +296,16 @@ public class RegistrationController {
         return registration;
     }
 
-    private Map<String, Object> publicRegistrationView(Registration registration) {
+    private Map<String, Object> publicDashboardRegistration(Registration registration) {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("playerName", safe(registration.getPlayerName()));
         view.put("format", safe(registration.getFormat()));
         view.put("partnerName", safe(registration.getPartnerName()));
-        boolean looking = isLookingForPartner(registration.getPartnerName());
-        view.put("lookingForPartner", looking);
-        view.put("publicPhone", looking && Boolean.TRUE.equals(registration.getPublicPartnerContact())
-                ? safe(registration.getPhone()) : "");
+
+        boolean lookingForPartner = isLookingForPartner(registration.getPartnerName());
+        view.put("lookingForPartner", lookingForPartner);
+        // Contact number is included only for the Dashboard partner-lookout case.
+        view.put("contactNumber", lookingForPartner ? safe(registration.getPhone()) : "");
         return view;
     }
 
@@ -326,10 +324,6 @@ public class RegistrationController {
                 || value.equals("need partner")
                 || value.equals("needs partner")
                 || value.equals("partner needed");
-    }
-
-    private String safeObject(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String safe(String value) {

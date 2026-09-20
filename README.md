@@ -2321,3 +2321,10 @@ Built from Step 29.31O1. Backend recovery behavior is unchanged.
 6. The edit API is Super Admin protected. Existing delete/payment behavior remains unchanged.
 
 Build note: automated frontend build could not be completed in this environment because Angular dependencies were not installed; run `npm install`/`npm run build` locally as usual.
+
+## Step 29.31X - Registered Players Open by Default
+
+- Dashboard Registered Players/team list is expanded by default for current/upcoming tournaments.
+- The existing button shows `Hide Players` initially.
+- Users can click `Hide Players` to collapse the list and click `Registered Players` to show it again.
+- No other behavior from Step 29.31W was changed.

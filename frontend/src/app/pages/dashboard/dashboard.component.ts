@@ -155,6 +155,7 @@ export class DashboardComponent implements OnInit {
           srrStarted: false
         }));
         this.splitTournaments();
+        this.openCurrentPlayerListsByDefault();
         this.preloadCurrentPlayers();
 
         // Secondary enrichment only. If it is slow or fails, the lists above remain visible.
@@ -186,6 +187,16 @@ export class DashboardComponent implements OnInit {
       return enriched ? {...item, ...enriched, tournament: {...item.tournament, ...enriched.tournament}} : item;
     });
     this.splitTournaments();
+    this.openCurrentPlayerListsByDefault();
+  }
+
+  private openCurrentPlayerListsByDefault(): void {
+    this.currentTournaments.forEach(item => {
+      const id = item.tournament.id || '';
+      if (id && !Object.prototype.hasOwnProperty.call(this.playersOpen, id)) {
+        this.playersOpen[id] = true;
+      }
+    });
   }
 
   private preloadCurrentPlayers(): void {

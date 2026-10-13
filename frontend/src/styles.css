@@ -3125,3 +3125,5 @@ h1, h2, h3,
 .partner-lookout-row{display:flex;gap:14px;align-items:center;padding:3px 0}
 .partner-lookout-row a{font-weight:700;text-decoration:none}
 @media(max-width:620px){.partner-lookout-row{justify-content:space-between}}
+
+.registration-pagination{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}.players-table td:last-child{position:sticky;right:0;background:#fff;z-index:1;white-space:nowrap}.players-table th:last-child{position:sticky;right:0;background:#edf6fb;z-index:2}

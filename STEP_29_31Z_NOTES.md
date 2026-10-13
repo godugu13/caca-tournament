@@ -1,0 +1,1 @@
+Game Day loads unified current tournament registrations; Super Admin can sync alias registrations into real tournament before SRR. Super Admin CSV export covers full loaded list. Admin table paginates 25/page, public remains full list. Validate in staging before live tournament.

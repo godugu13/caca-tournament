@@ -201,9 +201,16 @@ import { Tournament, Registration } from '../../models/models';
     <label><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAllVisible($event)"> Select All Visible</label>
     <button type="button" class="danger" (click)="openDeletePinModal()">Remove Selected Players ({{selectedCount()}})</button>
     <button type="button" class="secondary" (click)="loadPlayers(true)">Refresh Players</button>
+    <button *ngIf="isSuperAdmin()" type="button" class="secondary" (click)="downloadPlayersCsv()">Download All Registered Players (CSV)</button>
     <small>Select players, then enter Admin PIN once to remove them together.</small>
   </div>
 
+  <div *ngIf="isAdmin() && players.length > pageSize" class="registration-pagination">
+    <span>Showing {{pageStart()+1}}–{{pageEnd()}} of {{players.length}} players</span>
+    <button type="button" class="secondary small" [disabled]="playerPage===1" (click)="playerPage=playerPage-1">Previous</button>
+    <span>Page {{playerPage}} of {{pageCount()}}</span>
+    <button type="button" class="secondary small" [disabled]="playerPage>=pageCount()" (click)="playerPage=playerPage+1">Next</button>
+  </div>
   <div class="table-scroll">
     <table class="players-table">
       <thead>
@@ -221,9 +228,9 @@ import { Tournament, Registration } from '../../models/models';
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let p of players; let i=index">
-          <td *ngIf="isAdmin()"><input type="checkbox" [checked]="isSelected(p, i)" (change)="togglePlayerSelection(p, i, $event)"></td>
-          <td>{{i+1}}</td>
+        <tr *ngFor="let p of displayedPlayers(); let i=index">
+          <td *ngIf="isAdmin()"><input type="checkbox" [checked]="isSelected(p, rowIndex(i))" (change)="togglePlayerSelection(p, rowIndex(i), $event)"></td>
+          <td>{{rowIndex(i)+1}}</td>
           <td>{{displayPlayerName(p)}}</td>
           <td>{{p.format || model.format}}</td>
           <td *ngIf="showPartnerColumn()">{{partnerDisplay(p)}}</td>
@@ -272,6 +279,14 @@ export class RegistrationsComponent implements OnInit {
   selectedTournament?: Tournament;
   availableFormats: string[] = ['Singles'];
   players: Registration[] = [];
+  playerPage = 1;
+  readonly pageSize = 25;
+  pageCount(): number { return Math.max(1, Math.ceil(this.players.length / this.pageSize)); }
+  pageStart(): number { return (Math.min(this.playerPage, this.pageCount()) - 1) * this.pageSize; }
+  pageEnd(): number { return Math.min(this.players.length, this.pageStart() + this.pageSize); }
+  displayedPlayers(): Registration[] { return this.isAdmin() ? this.players.slice(this.pageStart(), this.pageEnd()) : this.players; }
+  rowIndex(index: number): number { return this.isAdmin() ? this.pageStart() + index : index; }
+
   selectedPlayerIds: {[id: string]: boolean} = {};
   bulkRemovePin = '';
   selectedFormats: string[] = [];
@@ -980,14 +995,14 @@ export class RegistrationsComponent implements OnInit {
   }
 
   allVisibleSelected(): boolean {
-    return (this.players || []).length > 0 &&
-      (this.players || []).every((p, i) => !!this.selectedPlayerIds[this.selectionKey(p, i)]);
+    return this.displayedPlayers().length > 0 &&
+      this.displayedPlayers().every((p, i) => !!this.selectedPlayerIds[this.selectionKey(p, this.rowIndex(i))]);
   }
 
   toggleAllVisible(event:any) {
     const checked = !!event?.target?.checked;
-    (this.players || []).forEach((p, i) => {
-      this.selectedPlayerIds[this.selectionKey(p, i)] = checked;
+    this.displayedPlayers().forEach((p, i) => {
+      this.selectedPlayerIds[this.selectionKey(p, this.rowIndex(i))] = checked;
     });
   }
 

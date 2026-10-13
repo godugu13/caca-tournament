@@ -190,6 +190,7 @@ import { AppConfigService } from "../../services/app-config.service";
           <span class="count-pill">{{ players.length }} Registered</span>
         </div>
         <div *ngIf="players.length">
+          <button *ngIf="isSuperAdmin()" type="button" class="secondary small" (click)="syncCurrentRegistrationsForGameDay()">Sync All Registered Players for Game Day</button>
           <button type="button" class="secondary" (click)="selectAll(true)">
             Select All
           </button>
@@ -449,13 +450,31 @@ tournaments: Tournament[] = [];
     if (!this.selectedTournamentId) return;
     localStorage.setItem("activeTournamentId", this.selectedTournamentId);
     localStorage.setItem("activeFormat", this.format);
-    this.api
-      .registrationsByFormat(this.selectedTournamentId, this.format)
-      .subscribe((p) => {
+    const currentRollingTrophy = (this.selectedTournament()?.name || '').toLowerCase().includes('caca 9th rolling trophy');
+    const request = currentRollingTrophy
+      ? this.api.currentRegistrations()
+      : this.api.registrationsByFormat(this.selectedTournamentId, this.format);
+    request.subscribe({
+      next: (all) => {
+        const p = all.filter(r => (r.format || '').toLowerCase() === this.format.toLowerCase());
         this.rawPlayers = p;
         this.players = this.uniqueDisplayPlayers(p);
-      });
+      },
+      error: () => { this.rawPlayers = []; this.players = []; }
+    });
     this.loadMatches();
+  }
+
+  syncCurrentRegistrationsForGameDay() {
+    if (!this.isSuperAdmin()) return;
+    if (!confirm('Move temporary Rolling Trophy registrations into the real tournament for SRR pairing? This keeps existing registration IDs and attendance.')) return;
+    this.api.recoverCurrentRegistrations(this.admin.currentPin()).subscribe({
+      next: (result) => {
+        alert(`Registration sync complete. Active registrations: ${result.activeRegistrationsAfterRecovery ?? 'see Registered Players'}.`);
+        this.loadPlayers();
+      },
+      error: (err) => alert(err?.error?.message || 'Registration sync failed. Do not start SRR until registrations are verified.')
+    });
   }
 
   loadMatches() {

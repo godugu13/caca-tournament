@@ -147,6 +147,11 @@ public class RegistrationController {
             registration.setFormat("Doubles");
         }
 
+        if (registration.getPhone() == null || registration.getPhone().trim().isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Phone number is required");
+        }
+
         // Registration is the critical path. Member lookup/create is intentionally
         // not repeated here; users can use the explicit Email Lookup before submit.
         normalizePayment(registration);

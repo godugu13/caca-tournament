@@ -79,7 +79,7 @@ import { Tournament, Registration } from '../../models/models';
       </div>
 
       <div class="compact-row">
-        <label class="row-label">Email <span class="required">*</span></label>
+        <label class="row-label">Email</label>
         <div class="row-value compact-inline">
           <input class="compact-input email-input" [(ngModel)]="model.email" placeholder="Email">
           <button type="button" class="secondary compact-btn" (click)="lookupMember()" [disabled]="memberLookupRunning">{{memberLookupRunning ? 'Looking…' : 'Lookup'}}</button>
@@ -92,7 +92,7 @@ import { Tournament, Registration } from '../../models/models';
       </div>
 
       <div class="compact-row">
-        <label class="row-label">Phone</label>
+        <label class="row-label">Phone Number <span class="required">*</span></label>
         <div class="row-value"><input class="compact-input phone-input" maxlength="15" [(ngModel)]="model.phone" placeholder="Phone"></div>
       </div>
 
@@ -519,7 +519,7 @@ export class RegistrationsComponent implements OnInit {
     if (!this.model.tournamentId) { this.registrationErrorMessage = 'Please select a tournament before registering.'; return; }
     if (!this.selectedTournament || (this.selectedTournament.status || '').toUpperCase() === 'COMPLETED') { this.registrationErrorMessage = 'Registration is closed for this completed tournament.'; return; }
     if (!this.selectedFormats.length) { this.registrationErrorMessage = 'Please select at least one format.'; return; }
-    if (!this.model.email || !this.model.playerName) { this.registrationErrorMessage = 'Please enter required Email and Full Name.'; return; }
+    if (!this.model.phone?.trim() || !this.model.playerName?.trim()) { this.registrationErrorMessage = 'Please enter required Phone Number and Full Name.'; return; }
     if ((this.model.playerName || '').length > 25 || (this.model.partnerName || '').length > 25) {
       this.registrationErrorMessage = 'Player and Partner names can be a maximum of 25 characters.';
       return;

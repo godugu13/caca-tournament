@@ -14,6 +14,13 @@ import { Tournament, Registration } from '../../models/models';
 <section class="tournament-page">
   <h2>{{ editMode ? 'Edit Tournament' : 'Add Tournament' }}</h2>
 
+  <div class="card" *ngIf="!editMode && isSuperAdmin()" style="padding:14px;margin-bottom:14px">
+    <h3>Import Registered Players (Optional)</h3>
+    <p class="muted">Upload the Excel/CSV file downloaded from an existing tournament. The players will be imported into this NEW tournament after creation; the original tournament will not be changed.</p>
+    <input type="file" accept=".xlsx,.xls,.csv,.txt" (change)="selectNewTournamentRoster($event)" [disabled]="rosterImportBusy">
+    <small *ngIf="newTournamentRoster">Selected: {{newTournamentRoster.name}}</small>
+    <p *ngIf="rosterImportMessage">{{rosterImportMessage}}</p>
+  </div>
   <div class="card tournament-form-card">
     <div class="tournament-form-grid">
       <div class="field-group name-field">
@@ -152,7 +159,7 @@ import { Tournament, Registration } from '../../models/models';
       </div>
 
       <div class="action-row form-actions">
-        <button (click)="save()">{{ editMode ? 'Update Tournament' : 'Create Tournament' }}</button>
+        <button (click)="save()" [disabled]="rosterImportBusy">{{ editMode ? 'Update Tournament' : 'Create Tournament' }}</button>
         <button type="button" class="secondary" *ngIf="editMode" (click)="cancelEdit()">Cancel Edit</button>
       </div>
     </div>
@@ -326,7 +333,17 @@ export class TournamentsComponent implements OnInit {
     this.model.teamPlayerNames = Array.from({length: count}, (_,i)=> this.model.teamPlayerNames?.[i] || '');
   }
   participantCountLabel(){ return this.model.formats?.some(f => f === 'Doubles' || f === 'Mixed Doubles' || f === 'Team Event') ? 'Total Number of Teams' : 'Total Number of Players'; }
+  newTournamentRoster?: File;
+  rosterImportBusy = false;
+  rosterImportMessage = '';
+  selectNewTournamentRoster(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    this.newTournamentRoster = file && /\.(xlsx|xls|csv|txt)$/i.test(file.name) ? file : undefined;
+    this.rosterImportMessage = file && !this.newTournamentRoster ? 'Please select an Excel or CSV roster file.' : '';
+  }
   save(){
+    if (this.rosterImportBusy) return;
     if(!this.model.formats || this.model.formats.length === 0) this.model.formats=['Singles'];
     this.model.tournamentType = this.model.formats[0] || '';
     this.model.registrationFee = Number(this.model.registrationFee || 0);
@@ -355,12 +372,38 @@ export class TournamentsComponent implements OnInit {
     const request = this.editMode && payload.id
       ? this.api.updateTournament(payload.id, payload, this.admin.currentPin())
       : this.api.createTournament(payload);
+    if (!this.editMode && this.newTournamentRoster) this.rosterImportBusy = true;
     request.subscribe({
-      next: () => {
+      next: (saved: Tournament) => {
+        if (!this.editMode && this.newTournamentRoster) {
+          const file = this.newTournamentRoster;
+          const pin = payload.adminPin || '';
+          if (!saved.id) {
+            this.rosterImportBusy = false;
+            this.rosterImportMessage = 'Tournament created, but no tournament ID was returned. Please import the roster from Registrations.';
+            this.load();
+            return;
+          }
+          this.rosterImportMessage = 'Tournament created. Importing registrations…';
+          this.api.uploadRoster(saved.id, '', pin, file).subscribe({
+            next: result => {
+              this.rosterImportBusy = false;
+              this.newTournamentRoster = undefined;
+              this.rosterImportMessage = `Tournament created. ${Number(result?.uploaded || 0)} registrations imported, ${Number(result?.skipped || 0)} skipped.`;
+              this.load();
+            },
+            error: err => {
+              this.rosterImportBusy = false;
+              this.rosterImportMessage = 'Tournament created, but roster import failed: ' + this.displayError(err) + '. You can retry from Registrations.';
+              this.load();
+            }
+          });
+          return;
+        }
         this.cancelEdit();
         this.load();
       },
-      error: err => alert(this.displayError(err))
+      error: err => { this.rosterImportBusy = false; alert(this.displayError(err)); }
     });
   }
 

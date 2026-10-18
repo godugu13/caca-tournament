@@ -1,0 +1,1 @@
+Step 29.32B: based on Step 29.32A. Only frontend/src/app/pages/player-score/player-score.component.ts was changed, adopting the Step 29.31Z scorecard refresh fix. Adds loading state, ChangeDetectorRef.markForCheck() after lookup/save/finalize responses. No backend or tournament registration changes. Not build or runtime tested.

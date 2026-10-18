@@ -18,10 +18,10 @@ import { Tournament, Registration } from '../../models/models';
   <div class="card registration-success-card" *ngIf="registrationComplete">
     <div class="registration-success-icon">✓</div>
     <h2>Registration Submitted Successfully!</h2>
-    <p><b>{{registeredDisplayName}}</b>, we received your registration request for <b>CACA 9th Rolling Trophy</b>.</p>
+    <p><b>{{registeredDisplayName}}</b>, we received your registration request for <b>{{selectedTournament?.name}}</b>.</p>
     <p class="practice-message">Practice well and see you on tournament day!</p>
     <p class="muted"><b>Note:</b> Your name may take a few minutes to appear in the Registered Players list while the registration is processed and verified by the admin.</p>
-    <p class="muted">October 24, 2026 • Doubles</p>
+    <p class="muted">{{selectedTournament?.tournamentDate}} • {{model.format}}</p>
     <button type="button" class="secondary" (click)="registerAnother()">Register Another Player</button>
   </div>
 
@@ -338,40 +338,39 @@ export class RegistrationsComponent implements OnInit {
   }
 
   ngOnInit() {
-    // TEMPORARY FAST MODE:
-    // Do not query the tournament collection when opening Register For.
-    const hardcodedTournament: Tournament = {
-      id: 'TEMP_CACA_9TH_ROLLING_TROPHY_2026',
-      name: 'CACA 9th Rolling Trophy - October 24, 2026',
-      tournamentType: 'Doubles',
-      tournamentDate: '2026-10-24',
-      tournamentStartTime: '10:00',
-      tournamentEndTime: '19:00',
-      registrationFee: 30,
-      address: '41865 Destiny Dr, Aldie, VA 20105',
-      totalNumberOfPlayers: 32,
-      srrRounds: 5,
-      knockoutRounds: 1,
-      formats: ['Doubles'],
-      status: 'OPEN',
-      discountOptions: []
-    };
-
-    this.tournaments = [hardcodedTournament];
-    this.selectedTournament = hardcodedTournament;
-    this.model.tournamentId = hardcodedTournament.id || '';
-    this.availableFormats = ['Doubles'];
-    this.model.format = 'Doubles';
-    this.selectedFormats = ['Doubles'];
-    this.tournamentsLoading = false;
-    this.tournamentsLoadError = '';
-    this.updatePaymentByFinalFee();
-
-    // Start Mongo warm-up immediately, but never block the registration form.
+    // Dashboard Register links carry the actual tournament ID. Load the catalog
+    // so registration, display, and player lists all use the selected tournament.
+    const requestedId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
+    const requestedFormat = this.route.snapshot.queryParamMap.get('format') || '';
+    this.tournamentsLoading = true;
+    this.api.tournaments().subscribe({
+      next: (all) => {
+        this.tournaments = (all || []).filter(t => t.id &&
+          (t.status || '').toUpperCase() !== 'COMPLETED' &&
+          (t.recordStatus || '').toUpperCase() !== 'D');
+        const requested = this.tournaments.find(t => t.id === requestedId);
+        if (requestedId && !requested) {
+          this.tournamentsLoadError = 'The selected tournament is unavailable for registration.';
+          this.selectedTournament = undefined;
+          this.model.tournamentId = '';
+        } else if (this.tournaments.length) {
+          this.model.tournamentId = (requested || this.tournaments[0]).id || '';
+          this.onTournamentChange();
+          if (requestedFormat && this.availableFormats.includes(requestedFormat)) {
+            this.model.format = requestedFormat;
+            this.selectedFormats = [requestedFormat];
+          }
+        } else {
+          this.tournamentsLoadError = 'No open tournaments are currently available.';
+        }
+        this.tournamentsLoading = false;
+      },
+      error: () => {
+        this.tournamentsLoading = false;
+        this.tournamentsLoadError = 'Unable to load tournaments. Please retry.';
+      }
+    });
     this.api.warmupRegistrationDb().pipe(timeout(5000)).subscribe({next:()=>{}, error:()=>{}});
-
-    // Load the unified player list independently.
-    this.loadPlayers();
   }
 
   private tournamentSortValue(t: Tournament): number {
@@ -451,9 +450,8 @@ export class RegistrationsComponent implements OnInit {
       return;
     }
 
-    const cacheKey = this.isAdmin()
-      ? 'caca.currentRollingTrophy.adminPlayers'
-      : 'caca.currentRollingTrophy.publicPlayers';
+    const cacheKey = `caca.registrationPlayers.${this.model.tournamentId}.${this.isAdmin() ? 'admin' : 'public'}`;
+    this.players = [];
 
     if (!forceRefresh) {
       try {

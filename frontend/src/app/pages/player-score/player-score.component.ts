@@ -1,5 +1,5 @@
 
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -40,7 +40,7 @@ import { Match, Tournament } from '../../models/models';
     <label>Registered Phone Number</label>
     <input type="tel" inputmode="tel" [(ngModel)]="phone" placeholder="Example: 5715358983 or +1 571-535-8983">
 
-    <button type="button" class="primary full-width compact-main" (click)="lookup()">Open My Score Card</button>
+    <button type="button" class="primary full-width compact-main" [disabled]="lookupLoading" (click)="lookup()">{{lookupLoading ? 'Opening Score Card...' : 'Open My Score Card'}}</button>
     <p class="warning" *ngIf="message">{{message}}</p>
   </div>
 
@@ -122,6 +122,7 @@ export class PlayerScoreComponent implements OnInit {
   format = 'Singles';
   phone = '';
   message = '';
+  lookupLoading = false;
   match?: Match;
   previousRounds: Match[] = [];
   currentRoundTab = 'CURRENT';
@@ -135,14 +136,14 @@ export class PlayerScoreComponent implements OnInit {
   longitude?: number;
   locationPermissionMessage = '';
 
-  constructor(private api: ApiService, private route: ActivatedRoute) {}
+  constructor(private api: ApiService, private route: ActivatedRoute, private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
     this.route.queryParamMap.subscribe(params => {
       this.tournamentId = params.get('tournamentId') || localStorage.getItem('activeTournamentId') || '';
       this.format = params.get('format') || localStorage.getItem('activeFormat') || 'Singles';
     });
-    this.api.tournaments().subscribe(t => this.tournaments = t || []);
+    this.api.tournaments().subscribe(t => { this.tournaments = t || []; this.cdr.markForCheck(); });
   }
 
 
@@ -161,14 +162,18 @@ export class PlayerScoreComponent implements OnInit {
   }
 
   lookup() {
+    if (this.lookupLoading) return;
     this.message = '';
     this.match = undefined;
     if (!this.tournamentId || !this.format || !this.phone) {
       this.message = 'Please select tournament, format, and enter phone number.';
       return;
     }
+    this.lookupLoading = true;
     this.api.playerScoreLookup(this.tournamentId, this.format, this.normalizePhoneInput(this.phone)).subscribe({
       next: res => {
+        this.lookupLoading = false;
+        this.cdr.markForCheck();
         if (!res.found || !res.match) {
           this.message = res.message || 'No score card found.';
           return;
@@ -180,7 +185,11 @@ export class PlayerScoreComponent implements OnInit {
         this.syncFromMatch();
         this.requestLocationForAudit();
       },
-      error: err => this.message = err?.error?.message || 'Unable to lookup score card.'
+      error: err => {
+        this.lookupLoading = false;
+        this.message = err?.error?.message || 'Unable to lookup score card.';
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -220,8 +229,9 @@ export class PlayerScoreComponent implements OnInit {
         this.replaceAccessibleMatch(saved);
         this.syncFromMatch();
         this.dirty[board] = false;
+        this.cdr.markForCheck();
       },
-      error: err => this.message = err?.error?.message || 'Unable to save score.'
+      error: err => { this.message = err?.error?.message || 'Unable to save score.'; this.cdr.markForCheck(); }
     });
   }
 
@@ -234,8 +244,9 @@ export class PlayerScoreComponent implements OnInit {
         this.replaceAccessibleMatch(saved);
         this.syncFromMatch();
         this.dirty = {};
+        this.cdr.markForCheck();
       },
-      error: err => this.message = err?.error?.message || 'Unable to finalize score.'
+      error: err => { this.message = err?.error?.message || 'Unable to finalize score.'; this.cdr.markForCheck(); }
     });
   }
 

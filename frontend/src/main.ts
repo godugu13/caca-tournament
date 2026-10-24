@@ -1,7 +1,7 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, Routes, CanActivateFn, Router } from '@angular/router';
-import { inject } from '@angular/core';
+import { inject, provideZoneChangeDetection } from '@angular/core';
 import { AppComponent } from './app/app.component';
 import { DashboardComponent } from './app/pages/dashboard/dashboard.component';
 import { TournamentsComponent } from './app/pages/tournaments/tournaments.component';
@@ -39,5 +39,5 @@ const routes: Routes = [
   { path: 'standings/:tournamentId/:format', component: StandingsComponent }
 ];
 
-bootstrapApplication(AppComponent, { providers: [provideHttpClient(), provideRouter(routes)] })
+bootstrapApplication(AppComponent, { providers: [provideZoneChangeDetection(), provideHttpClient(), provideRouter(routes)] })
   .catch(err => console.error(err));

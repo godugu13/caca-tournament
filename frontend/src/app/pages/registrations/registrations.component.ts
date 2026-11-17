@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, NgFor, NgIf } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -47,7 +47,7 @@ import { Tournament, Registration } from '../../models/models';
         <label class="row-label">Tournament <span class="required">*</span></label>
         <div class="row-value">
           <div class="tournament-loading" *ngIf="tournamentsLoading">Loading tournaments…</div>
-          <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">{{tournamentsLoadError}}</div>
+          <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">{{tournamentsLoadError}} <button type="button" class="secondary small" (click)="loadTournamentCatalog()">Retry</button></div>
 
           <div class="compact-tournament-list" *ngIf="!tournamentsLoading && tournaments.length">
             <label class="compact-tournament-option"
@@ -325,7 +325,7 @@ export class RegistrationsComponent implements OnInit {
   };
 
   constructor(private api: ApiService, private route: ActivatedRoute, private router: Router,
-    private adminAccess: AdminAccessService) {}
+    private adminAccess: AdminAccessService, private cdr: ChangeDetectorRef) {}
 
 
   isAdmin(): boolean {
@@ -340,10 +340,16 @@ export class RegistrationsComponent implements OnInit {
   ngOnInit() {
     // Dashboard Register links carry the actual tournament ID. Load the catalog
     // so registration, display, and player lists all use the selected tournament.
+    this.loadTournamentCatalog();
+  }
+
+  loadTournamentCatalog(): void {
     const requestedId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
     const requestedFormat = this.route.snapshot.queryParamMap.get('format') || '';
     this.tournamentsLoading = true;
-    this.api.tournaments().subscribe({
+    this.tournamentsLoadError = "";
+    this.cdr.detectChanges();
+    this.api.tournaments().pipe(timeout(45000)).subscribe({
       next: (all) => {
         this.tournaments = (all || []).filter(t => t.id &&
           (t.status || '').toUpperCase() !== 'COMPLETED' &&
@@ -364,10 +370,12 @@ export class RegistrationsComponent implements OnInit {
           this.tournamentsLoadError = 'No open tournaments are currently available.';
         }
         this.tournamentsLoading = false;
+        this.cdr.detectChanges();
       },
       error: () => {
         this.tournamentsLoading = false;
         this.tournamentsLoadError = 'Unable to load tournaments. Please retry.';
+        this.cdr.detectChanges();
       }
     });
     this.api.warmupRegistrationDb().pipe(timeout(5000)).subscribe({next:()=>{}, error:()=>{}});

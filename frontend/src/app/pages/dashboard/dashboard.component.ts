@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { timeout } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { AdminAccessService } from '../../services/admin-access.service';
 import { Tournament, DashboardTournament, PublicRegistration } from '../../models/models';
@@ -11,9 +12,10 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
   imports: [RouterLink, NgFor, NgIf, DatePipe],
   template: `
 <h2>Dashboard</h2>
+<div class="card" *ngIf="dashboardLoading">Loading tournaments…</div>
 <div class="card" *ngIf="dashboardError">
   <b>Unable to load tournament data.</b>
-  <span class="muted"> {{dashboardError}}</span>
+  <span class="muted"> {{dashboardError}}</span> <button type="button" class="secondary small" (click)="load()">Retry</button>
 </div>
 
 
@@ -37,7 +39,7 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
     <span class="count-pill ocean-pill">{{currentTournaments.length}}</span>
   </div>
 
-  <div *ngIf="currentTournaments.length === 0" class="empty-state">No current or upcoming tournaments found yet.</div>
+  <div *ngIf="!dashboardLoading && currentTournaments.length === 0" class="empty-state">No current or upcoming tournaments found yet.</div>
 
   <div class="tournament-link-list" *ngIf="currentTournaments.length > 0">
     <article class="tournament-row future dashboard-tournament-card" *ngFor="let item of currentTournaments">
@@ -100,7 +102,7 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
     <span class="count-pill">{{completedTournaments.length}}</span>
   </div>
 
-  <div *ngIf="completedTournaments.length === 0" class="empty-state">No completed tournaments found yet.</div>
+  <div *ngIf="!dashboardLoading && completedTournaments.length === 0" class="empty-state">No completed tournaments found yet.</div>
 
   <div class="completed-results-grid" *ngIf="completedTournaments.length > 0">
     <article class="completed-result-card" *ngFor="let item of completedTournaments">
@@ -127,8 +129,9 @@ export class DashboardComponent implements OnInit {
   playersLoading: {[tournamentId: string]: boolean} = {};
   editableTournamentIds = new Set<string>();
   dashboardError = '';
+  dashboardLoading = false;
 
-  constructor(private api: ApiService, private admin: AdminAccessService) {}
+  constructor(private api: ApiService, private admin: AdminAccessService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     this.load();
@@ -149,11 +152,13 @@ export class DashboardComponent implements OnInit {
 
   load(): void {
     this.dashboardError = '';
+    this.dashboardLoading = true;
 
     // Fast path: Dashboard visibility comes directly from the tournament collection.
     // Match/result metadata is optional enrichment and must never block the tournament list.
-    this.api.tournaments().subscribe({
+    this.api.tournaments().pipe(timeout(45000)).subscribe({
       next: tournaments => {
+        this.dashboardLoading = false;
         const visible = (tournaments || []).filter(t => !t.hiddenFromDashboard);
         this.tournaments = visible.map(t => ({
           tournament: t,
@@ -165,18 +170,21 @@ export class DashboardComponent implements OnInit {
         this.splitTournaments();
         this.openCurrentPlayerListsByDefault();
         this.preloadCurrentPlayers();
+        this.cdr.detectChanges();
 
         // Secondary enrichment only. If it is slow or fails, the lists above remain visible.
         this.api.dashboardTournaments().subscribe({
-          next: metadata => this.mergeDashboardMetadata(metadata || []),
+          next: metadata => { this.mergeDashboardMetadata(metadata || []); this.cdr.detectChanges(); },
           error: () => {}
         });
       },
       error: (err: any) => {
+        this.dashboardLoading = false;
         this.tournaments = [];
         this.currentTournaments = [];
         this.completedTournaments = [];
         this.dashboardError = err?.error?.message || err?.message || 'Unable to load tournaments from the backend.';
+        this.cdr.detectChanges();
       }
     });
   }

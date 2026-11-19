@@ -3,6 +3,7 @@ import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { timeout } from 'rxjs';
 import { ApiService } from '../../services/api.service';
+import { PublicSnapshotService } from '../../services/public-snapshot.service';
 import { AdminAccessService } from '../../services/admin-access.service';
 import { Tournament, DashboardTournament, PublicRegistration } from '../../models/models';
 
@@ -12,7 +13,8 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
   imports: [RouterLink, NgFor, NgIf, DatePipe],
   template: `
 <h2>Dashboard</h2>
-<div class="card" *ngIf="dashboardLoading">Loading tournaments…</div>
+<div class="card" *ngIf="dashboardLoading && !tournaments.length">Connecting to tournament server…</div>
+<div class="muted" *ngIf="showingCachedData">Showing last loaded tournament information on this device while checking for updates.</div>
 <div class="card" *ngIf="dashboardError">
   <b>Unable to load tournament data.</b>
   <span class="muted"> {{dashboardError}}</span> <button type="button" class="secondary small" (click)="load()">Retry</button>
@@ -66,9 +68,9 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
         </div>
 
         <div class="dashboard-player-list" *ngIf="playersOpen[item.tournament.id || '']">
-          <span *ngIf="playersLoading[item.tournament.id || '']">Loading players…</span>
+          <span *ngIf="playersLoading[item.tournament.id || '']">Checking latest players…</span>
           <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
-          <div class="dashboard-team-buttons" *ngIf="!playersLoading[item.tournament.id || '']">
+          <div class="dashboard-team-buttons">
             <div class="dashboard-team-button"
                  *ngFor="let team of registeredTeams(item.tournament.id || ''); let i=index"
                  [class.team-alt]="i % 2 === 1">
@@ -130,8 +132,9 @@ export class DashboardComponent implements OnInit {
   editableTournamentIds = new Set<string>();
   dashboardError = '';
   dashboardLoading = false;
+  showingCachedData = false;
 
-  constructor(private api: ApiService, private admin: AdminAccessService, private cdr: ChangeDetectorRef) {}
+  constructor(private api: ApiService, private admin: AdminAccessService, private cdr: ChangeDetectorRef, private snapshots: PublicSnapshotService) {}
 
   ngOnInit(): void {
     this.load();
@@ -153,12 +156,23 @@ export class DashboardComponent implements OnInit {
   load(): void {
     this.dashboardError = '';
     this.dashboardLoading = true;
+    const cached = this.snapshots.catalog().filter(t => !t.hiddenFromDashboard);
+    if (cached.length) {
+      this.tournaments = cached.map(t => ({ tournament: t, championDeclared: (t.status || '').toUpperCase() === 'COMPLETED', srrStarted: false }));
+      this.splitTournaments();
+      this.openCurrentPlayerListsByDefault();
+      this.preloadCurrentPlayers();
+      this.showingCachedData = true;
+      this.cdr.detectChanges();
+    }
 
     // Fast path: Dashboard visibility comes directly from the tournament collection.
     // Match/result metadata is optional enrichment and must never block the tournament list.
-    this.api.tournaments().pipe(timeout(45000)).subscribe({
+    this.api.tournaments(true).pipe(timeout(210000)).subscribe({
       next: tournaments => {
         this.dashboardLoading = false;
+        this.showingCachedData = false;
+        this.snapshots.saveCatalog(tournaments || []);
         const visible = (tournaments || []).filter(t => !t.hiddenFromDashboard);
         this.tournaments = visible.map(t => ({
           tournament: t,
@@ -180,9 +194,10 @@ export class DashboardComponent implements OnInit {
       },
       error: (err: any) => {
         this.dashboardLoading = false;
-        this.tournaments = [];
-        this.currentTournaments = [];
-        this.completedTournaments = [];
+        if (!this.tournaments.length) {
+          this.currentTournaments = [];
+          this.completedTournaments = [];
+        }
         this.dashboardError = err?.error?.message || err?.message || 'Unable to load tournaments from the backend.';
         this.cdr.detectChanges();
       }
@@ -216,37 +231,28 @@ export class DashboardComponent implements OnInit {
   }
 
   private preloadCurrentPlayers(): void {
-    const item = this.currentTournaments.find(x =>
-      (x.tournament.name || '').toLowerCase().includes('caca 9th rolling trophy')
-    );
+    const item = this.currentTournaments[0];
     const t = item?.tournament;
     const id = t?.id || '';
-    if (!id || Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) return;
+    if (!id || this.playersLoading[id]) return;
 
     try {
-      const cached = localStorage.getItem('caca.currentRollingTrophy.publicPlayers');
-      if (cached) {
-        const players = JSON.parse(cached);
-        if (Array.isArray(players) && players.length) {
-          this.registeredPlayers[id] = players;
-        }
-      }
+      const players = this.snapshots.players(id);
+      if (players.length) this.registeredPlayers[id] = players;
     } catch {}
 
     this.playersLoading[id] = !Object.prototype.hasOwnProperty.call(this.registeredPlayers, id);
-    this.api.currentPublicRegistrationNames().subscribe({
+    this.api.publicRegistrationNames(id).subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;
-        try {
-          localStorage.setItem('caca.currentRollingTrophy.publicPlayers', JSON.stringify(players || []));
-        } catch {}
+        this.snapshots.savePlayers(id, players || []);
+        this.cdr.detectChanges();
       },
       error: () => {
         this.playersLoading[id] = false;
-        if (!Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) {
-          this.registeredPlayers[id] = [];
-        }
+        if (!Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) this.registeredPlayers[id] = [];
+        this.cdr.detectChanges();
       }
     });
   }
@@ -255,26 +261,23 @@ export class DashboardComponent implements OnInit {
     const id = t.id || '';
     if (!id) return;
     this.playersOpen[id] = !this.playersOpen[id];
-    if (!this.playersOpen[id] || this.registeredPlayers[id]) return;
+    if (!this.playersOpen[id]) return;
+    const cached = this.snapshots.players(id);
+    if (cached.length) this.registeredPlayers[id] = cached;
     this.playersLoading[id] = true;
-    const isCurrentRollingTrophy = (t.name || '').toLowerCase().includes('caca 9th rolling trophy');
-    const request = isCurrentRollingTrophy
-      ? this.api.currentPublicRegistrationNames()
-      : this.api.publicRegistrationNames(id);
+    const request = this.api.publicRegistrationNames(id);
 
     request.subscribe({
       next: players => {
         this.registeredPlayers[id] = players || [];
         this.playersLoading[id] = false;
-        if (isCurrentRollingTrophy) {
-          try {
-            localStorage.setItem('caca.currentRollingTrophy.publicPlayers', JSON.stringify(players || []));
-          } catch {}
-        }
+        this.snapshots.savePlayers(id, players || []);
+        this.cdr.detectChanges();
       },
       error: () => {
-        this.registeredPlayers[id] = [];
+        if (!this.registeredPlayers[id]) this.registeredPlayers[id] = [];
         this.playersLoading[id] = false;
+        this.cdr.detectChanges();
       }
     });
   }

@@ -4,6 +4,7 @@ import { CurrencyPipe, NgFor, NgIf } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, timeout } from 'rxjs';
 import { ApiService } from '../../services/api.service';
+import { PublicSnapshotService } from '../../services/public-snapshot.service';
 import { AdminAccessService } from '../../services/admin-access.service';
 import { Tournament, Registration } from '../../models/models';
 
@@ -46,10 +47,11 @@ import { Tournament, Registration } from '../../models/models';
       <div class="compact-row tournament-picker-wrap">
         <label class="row-label">Tournament <span class="required">*</span></label>
         <div class="row-value">
-          <div class="tournament-loading" *ngIf="tournamentsLoading">Loading tournaments…</div>
+          <div class="tournament-loading" *ngIf="tournamentsLoading && !tournaments.length">Connecting to tournament server…</div>
+          <div class="muted" *ngIf="tournamentsLoading && tournaments.length">Showing last loaded tournaments while connecting. Registration will be verified by the server.</div>
           <div class="warning" *ngIf="!tournamentsLoading && tournamentsLoadError">{{tournamentsLoadError}} <button type="button" class="secondary small" (click)="loadTournamentCatalog()">Retry</button></div>
 
-          <div class="compact-tournament-list" *ngIf="!tournamentsLoading && tournaments.length">
+          <div class="compact-tournament-list" *ngIf="tournaments.length">
             <label class="compact-tournament-option"
                    *ngFor="let t of tournaments"
                    [class.selected]="model.tournamentId === t.id">
@@ -156,8 +158,8 @@ import { Tournament, Registration } from '../../models/models';
     <p class="warning" *ngIf="registrationErrorMessage">{{registrationErrorMessage}}</p>
 
     <div class="center-actions">
-      <button type="button" (click)="register()" [disabled]="registrationSubmitting">
-        {{registrationSubmitting ? 'Registering…' : 'Register'}}
+      <button type="button" (click)="register()" [disabled]="registrationSubmitting || !catalogVerified">
+        {{registrationSubmitting ? 'Saving to database…' : (!catalogVerified ? 'Connecting to server…' : 'Register')}}
       </button>
     </div>
   </div>
@@ -302,6 +304,8 @@ export class RegistrationsComponent implements OnInit {
   registrationComplete = false;
   registeredDisplayName = '';
   registrationSubmitting = false;
+  catalogVerified = false;
+  snapshotNotice = '';
   memberLookupRunning = false;
   recoveryRunning = false;
   recoveryMessage = '';
@@ -325,7 +329,7 @@ export class RegistrationsComponent implements OnInit {
   };
 
   constructor(private api: ApiService, private route: ActivatedRoute, private router: Router,
-    private adminAccess: AdminAccessService, private cdr: ChangeDetectorRef) {}
+    private adminAccess: AdminAccessService, private cdr: ChangeDetectorRef, private snapshots: PublicSnapshotService) {}
 
 
   isAdmin(): boolean {
@@ -347,9 +351,25 @@ export class RegistrationsComponent implements OnInit {
     const requestedId = this.route.snapshot.queryParamMap.get('tournamentId') || '';
     const requestedFormat = this.route.snapshot.queryParamMap.get('format') || '';
     this.tournamentsLoading = true;
-    this.tournamentsLoadError = "";
+    this.catalogVerified = false;
+    this.tournamentsLoadError = '';
+    const cached = this.snapshots.catalog().filter(t =>
+      (t.status || '').toUpperCase() !== 'COMPLETED' &&
+      (t.recordStatus || '').toUpperCase() !== 'D');
+    if (cached.length) {
+      this.tournaments = cached;
+      const requested = cached.find(t => t.id === requestedId);
+      this.model.tournamentId = (requested || cached[0]).id || '';
+      this.selectedTournament = requested || cached[0];
+      this.availableFormats = this.selectedTournament.formats?.length
+        ? this.selectedTournament.formats : [this.selectedTournament.tournamentType || 'Singles'];
+      this.model.format = this.availableFormats.includes(requestedFormat) ? requestedFormat : this.availableFormats[0];
+      this.selectedFormats = [this.model.format];
+      this.updatePaymentByFinalFee();
+      this.loadPlayers();
+    }
     this.cdr.detectChanges();
-    this.api.tournaments().pipe(timeout(45000)).subscribe({
+    this.api.tournaments(true).pipe(timeout(210000)).subscribe({
       next: (all) => {
         this.tournaments = (all || []).filter(t => t.id &&
           (t.status || '').toUpperCase() !== 'COMPLETED' &&
@@ -360,7 +380,8 @@ export class RegistrationsComponent implements OnInit {
           this.selectedTournament = undefined;
           this.model.tournamentId = '';
         } else if (this.tournaments.length) {
-          this.model.tournamentId = (requested || this.tournaments[0]).id || '';
+          const current = this.tournaments.find(t => t.id === this.model.tournamentId);
+          this.model.tournamentId = (requested || current || this.tournaments[0]).id || '';
           this.onTournamentChange();
           if (requestedFormat && this.availableFormats.includes(requestedFormat)) {
             this.model.format = requestedFormat;
@@ -370,15 +391,17 @@ export class RegistrationsComponent implements OnInit {
           this.tournamentsLoadError = 'No open tournaments are currently available.';
         }
         this.tournamentsLoading = false;
+        this.catalogVerified = true;
+        this.snapshots.saveCatalog(all || []);
         this.cdr.detectChanges();
       },
       error: () => {
         this.tournamentsLoading = false;
-        this.tournamentsLoadError = 'Unable to load tournaments. Please retry.';
+        this.tournamentsLoadError = this.tournaments.length ? 'Live tournament verification unavailable. Registration is temporarily disabled; retry.' : 'Unable to load tournaments. Please retry.';
         this.cdr.detectChanges();
       }
     });
-    this.api.warmupRegistrationDb().pipe(timeout(5000)).subscribe({next:()=>{}, error:()=>{}});
+    // The catalog request itself wakes Render; avoid a competing warmup request.
   }
 
   private tournamentSortValue(t: Tournament): number {
@@ -458,20 +481,10 @@ export class RegistrationsComponent implements OnInit {
       return;
     }
 
-    const cacheKey = `caca.registrationPlayers.${this.model.tournamentId}.${this.isAdmin() ? 'admin' : 'public'}`;
-    this.players = [];
-
-    if (!forceRefresh) {
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const cachedPlayers = JSON.parse(cached);
-          if (Array.isArray(cachedPlayers) && cachedPlayers.length) {
-            this.players = cachedPlayers.map((p:any) => this.normalizeRegistrationForDisplay(p)) as any;
-          }
-        }
-      } catch {}
-    }
+    const tournamentId = this.model.tournamentId;
+    this.players = this.isAdmin() ? [] : this.snapshots.players(tournamentId)
+      .map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
+    this.cdr.detectChanges();
 
     const isCurrentRollingTrophy = this.model.tournamentId === 'TEMP_CACA_9TH_ROLLING_TROPHY_2026';
     const request: any = isCurrentRollingTrophy
@@ -480,15 +493,16 @@ export class RegistrationsComponent implements OnInit {
 
     request.subscribe({
       next: (players: any[]) => {
+        if (this.model.tournamentId !== tournamentId) return;
         this.players = (players || []).map(p => this.normalizeRegistrationForDisplay(p as any)) as any;
         this.selectedPlayerIds = {};
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(this.players || []));
-        } catch {}
+        if (!this.isAdmin()) this.snapshots.savePlayers(tournamentId, players as any);
+        this.cdr.detectChanges();
       },
       error: (err: any) => {
-        if (!this.players.length) {
+        if (this.model.tournamentId === tournamentId && !this.players.length) {
           this.registrationErrorMessage = this.displayError(err);
+          this.cdr.detectChanges();
         }
       }
     });
@@ -522,6 +536,7 @@ export class RegistrationsComponent implements OnInit {
     this.registrationSuccessMessage = '';
     this.registrationErrorMessage = '';
 
+    if (!this.catalogVerified) { this.registrationErrorMessage = 'Connecting to tournament server. Please wait before submitting.'; return; }
     if (!this.model.tournamentId) { this.registrationErrorMessage = 'Please select a tournament before registering.'; return; }
     if (!this.selectedTournament || (this.selectedTournament.status || '').toUpperCase() === 'COMPLETED') { this.registrationErrorMessage = 'Registration is closed for this completed tournament.'; return; }
     if (!this.selectedFormats.length) { this.registrationErrorMessage = 'Please select at least one format.'; return; }
@@ -552,12 +567,9 @@ export class RegistrationsComponent implements OnInit {
       teamMemberNames: []
     };
 
-    // Immediate acknowledgement: do not make the user wait for the slow Mongo write.
-    // Keep the HTTP request alive in this component while the success screen is shown.
+    // A registration is successful only after the backend confirms the write.
+    this.registrationSubmitting = true;
     this.registeredDisplayName = this.model.playerName;
-    this.registrationSubmitting = false;
-    this.registrationComplete = true;
-    window.scrollTo({top: 0, behavior: 'smooth'});
 
     const requests = this.selectedFormats.map(fmt =>
       this.api.register({
@@ -570,21 +582,19 @@ export class RegistrationsComponent implements OnInit {
     forkJoin(requests).subscribe({
       next: savedList => {
         const saved = savedList[0];
+        this.registrationSubmitting = false;
+        this.registrationComplete = true;
+        window.scrollTo({top: 0, behavior: 'smooth'});
         this.registeredDisplayName = this.displayPlayerName(saved) || this.registeredDisplayName;
         // Refresh cached players after the database finally confirms the save.
         this.loadPlayers(true);
+        this.cdr.detectChanges();
       },
       error: (err: any) => {
-        // The user has already moved to the acknowledgement screen.
-        // Preserve the form values in browser storage so an admin can recover the request
-        // if the backend actually rejects it instead of merely responding slowly.
-        try {
-          localStorage.setItem('caca.pendingRegistration', JSON.stringify({
-            ...payload,
-            submittedAt: new Date().toISOString(),
-            error: this.displayError(err)
-          }));
-        } catch {}
+        this.registrationSubmitting = false;
+        this.registrationComplete = false;
+        this.registrationErrorMessage = 'Registration was not confirmed by the server. Please check the player list before retrying. ' + this.displayError(err);
+        this.cdr.detectChanges();
       }
     });
   }

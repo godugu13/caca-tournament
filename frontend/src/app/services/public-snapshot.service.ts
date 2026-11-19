@@ -26,7 +26,10 @@ export class PublicSnapshotService {
     if (!id) return [];
     try {
       const value = JSON.parse(localStorage.getItem(this.playersKey(id)) || 'null');
-      return Array.isArray(value?.items) ? value.items : [];
+      return Array.isArray(value?.items) ? value.items.map((p: PublicRegistration) => ({
+        playerName: p.playerName || '', partnerName: p.partnerName || '',
+        format: p.format || '', lookingForPartner: !!p.lookingForPartner
+      })) : [];
     } catch { return []; }
   }
 

@@ -69,7 +69,7 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
 
         <div class="dashboard-player-list" *ngIf="playersOpen[item.tournament.id || '']">
           <span *ngIf="playersLoading[item.tournament.id || '']">Checking latest players…</span>
-          <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations yet.</span>
+          <span *ngIf="!playersLoading[item.tournament.id || ''] && !(registeredPlayers[item.tournament.id || ''] || []).length">No registrations found in the latest available list.</span>
           <div class="dashboard-team-buttons">
             <div class="dashboard-team-button"
                  *ngFor="let team of registeredTeams(item.tournament.id || ''); let i=index"
@@ -82,11 +82,11 @@ import { Tournament, DashboardTournament, PublicRegistration } from '../../model
             </div>
           </div>
 
-          <div class="partner-lookout" *ngIf="partnerLookout(item.tournament.id || '').length">
+          <div class="partner-lookout" *ngIf="isDoublesTournament(item.tournament) && partnerLookout(item.tournament.id || '').length">
             <h4>Looking for a Doubles Partner</h4>
             <div class="partner-lookout-row" *ngFor="let p of partnerLookout(item.tournament.id || '')">
               <b>{{p.playerName}}</b>
-              <a *ngIf="p.contactNumber" [href]="'tel:' + p.contactNumber">{{p.contactNumber}}</a>
+              <a *ngIf="isAdmin() && p.contactNumber" [href]="'tel:' + p.contactNumber">{{p.contactNumber}}</a>
             </div>
           </div>
         </div>
@@ -141,6 +141,11 @@ export class DashboardComponent implements OnInit {
     this.loadEditableTournaments();
   }
   isSuperAdmin(): boolean { return this.admin.isSuperAdmin(); }
+  isAdmin(): boolean { return this.admin.isAdmin(); }
+  isDoublesTournament(t: Tournament): boolean {
+    const formats = [t.tournamentType || '', ...(t.formats || [])].map(f => String(f).toLowerCase());
+    return formats.some(f => f.includes('doubles') || f === 'mixed');
+  }
   canEditTournament(t: Tournament): boolean {
     if (!this.admin.isAdmin() || !t.id) return false;
     return this.admin.isSuperAdmin() || this.editableTournamentIds.has(t.id);
@@ -231,29 +236,29 @@ export class DashboardComponent implements OnInit {
   }
 
   private preloadCurrentPlayers(): void {
-    const item = this.currentTournaments[0];
-    const t = item?.tournament;
-    const id = t?.id || '';
-    if (!id || this.playersLoading[id]) return;
-
-    try {
-      const players = this.snapshots.players(id);
-      if (players.length) this.registeredPlayers[id] = players;
-    } catch {}
-
-    this.playersLoading[id] = !Object.prototype.hasOwnProperty.call(this.registeredPlayers, id);
-    this.api.publicRegistrationNames(id).subscribe({
-      next: players => {
-        this.registeredPlayers[id] = players || [];
-        this.playersLoading[id] = false;
-        this.snapshots.savePlayers(id, players || []);
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.playersLoading[id] = false;
-        if (!Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) this.registeredPlayers[id] = [];
-        this.cdr.detectChanges();
+    // All upcoming lists are expanded by default, so fetch EACH tournament's
+    // registrations independently. Never substitute one tournament's data for another.
+    this.currentTournaments.forEach(item => {
+      const id = item.tournament.id || '';
+      if (!id || this.playersLoading[id]) return;
+      const cached = this.snapshots.players(id);
+      if (cached.length && !Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) {
+        this.registeredPlayers[id] = cached;
       }
+      this.playersLoading[id] = true;
+      this.api.publicRegistrationNames(id).subscribe({
+        next: players => {
+          this.registeredPlayers[id] = players || [];
+          this.playersLoading[id] = false;
+          this.snapshots.savePlayers(id, players || []);
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.playersLoading[id] = false;
+          if (!Object.prototype.hasOwnProperty.call(this.registeredPlayers, id)) this.registeredPlayers[id] = [];
+          this.cdr.detectChanges();
+        }
+      });
     });
   }
 
